@@ -1,0 +1,5 @@
+config SHIELD_DILEMMA_MAX_LEFT
+    def_bool $(shields_list_contains,dilemma_max_left)
+
+config SHIELD_DILEMMA_MAX_RIGHT
+    def_bool $(shields_list_contains,dilemma_max_right)

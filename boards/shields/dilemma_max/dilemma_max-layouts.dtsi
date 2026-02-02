@@ -1,0 +1,80 @@
+// Physical layout for ZMK Studio
+// Dilemma Max: 54 keys (6x4 + 3 thumb per side)
+
+#include <physical_layouts.dtsi>
+
+/ {
+    default_layout: default_layout {
+        compatible = "zmk,physical-layout";
+        display-name = "Default";
+        transform = <&default_transform>;
+        kscan = <&kscan>;
+
+        keys  //                     w   h    x    y     rot    rx    ry
+            // Left side - Row 0
+            = <&key_physical_attrs 100 100    0   38       0     0     0>
+            , <&key_physical_attrs 100 100  100   13       0     0     0>
+            , <&key_physical_attrs 100 100  200    0       0     0     0>
+            , <&key_physical_attrs 100 100  300   13       0     0     0>
+            , <&key_physical_attrs 100 100  400   25       0     0     0>
+            , <&key_physical_attrs 100 100  500   38       0     0     0>
+            // Right side - Row 0
+            , <&key_physical_attrs 100 100  800   38       0     0     0>
+            , <&key_physical_attrs 100 100  900   25       0     0     0>
+            , <&key_physical_attrs 100 100 1000   13       0     0     0>
+            , <&key_physical_attrs 100 100 1100    0       0     0     0>
+            , <&key_physical_attrs 100 100 1200   13       0     0     0>
+            , <&key_physical_attrs 100 100 1300   38       0     0     0>
+            // Left side - Row 1
+            , <&key_physical_attrs 100 100    0  138       0     0     0>
+            , <&key_physical_attrs 100 100  100  113       0     0     0>
+            , <&key_physical_attrs 100 100  200  100       0     0     0>
+            , <&key_physical_attrs 100 100  300  113       0     0     0>
+            , <&key_physical_attrs 100 100  400  125       0     0     0>
+            , <&key_physical_attrs 100 100  500  138       0     0     0>
+            // Right side - Row 1
+            , <&key_physical_attrs 100 100  800  138       0     0     0>
+            , <&key_physical_attrs 100 100  900  125       0     0     0>
+            , <&key_physical_attrs 100 100 1000  113       0     0     0>
+            , <&key_physical_attrs 100 100 1100  100       0     0     0>
+            , <&key_physical_attrs 100 100 1200  113       0     0     0>
+            , <&key_physical_attrs 100 100 1300  138       0     0     0>
+            // Left side - Row 2
+            , <&key_physical_attrs 100 100    0  238       0     0     0>
+            , <&key_physical_attrs 100 100  100  213       0     0     0>
+            , <&key_physical_attrs 100 100  200  200       0     0     0>
+            , <&key_physical_attrs 100 100  300  213       0     0     0>
+            , <&key_physical_attrs 100 100  400  225       0     0     0>
+            , <&key_physical_attrs 100 100  500  238       0     0     0>
+            // Right side - Row 2
+            , <&key_physical_attrs 100 100  800  238       0     0     0>
+            , <&key_physical_attrs 100 100  900  225       0     0     0>
+            , <&key_physical_attrs 100 100 1000  213       0     0     0>
+            , <&key_physical_attrs 100 100 1100  200       0     0     0>
+            , <&key_physical_attrs 100 100 1200  213       0     0     0>
+            , <&key_physical_attrs 100 100 1300  238       0     0     0>
+            // Left side - Row 3
+            , <&key_physical_attrs 100 100    0  338       0     0     0>
+            , <&key_physical_attrs 100 100  100  313       0     0     0>
+            , <&key_physical_attrs 100 100  200  300       0     0     0>
+            , <&key_physical_attrs 100 100  300  313       0     0     0>
+            , <&key_physical_attrs 100 100  400  325       0     0     0>
+            , <&key_physical_attrs 100 100  500  338       0     0     0>
+            // Right side - Row 3
+            , <&key_physical_attrs 100 100  800  338       0     0     0>
+            , <&key_physical_attrs 100 100  900  325       0     0     0>
+            , <&key_physical_attrs 100 100 1000  313       0     0     0>
+            , <&key_physical_attrs 100 100 1100  300       0     0     0>
+            , <&key_physical_attrs 100 100 1200  313       0     0     0>
+            , <&key_physical_attrs 100 100 1300  338       0     0     0>
+            // Left thumb cluster (encoder, thumb2, thumb3)
+            , <&key_physical_attrs 100 100  300  425       0     0     0>
+            , <&key_physical_attrs 100 100  400  438       0     0     0>
+            , <&key_physical_attrs 100 100  500  450       0     0     0>
+            // Right thumb cluster (thumb1, thumb2, encoder)
+            , <&key_physical_attrs 100 100  800  450       0     0     0>
+            , <&key_physical_attrs 100 100  900  438       0     0     0>
+            , <&key_physical_attrs 100 100 1000  425       0     0     0>
+            ;
+    };
+};

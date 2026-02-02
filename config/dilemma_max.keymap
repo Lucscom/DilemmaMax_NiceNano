@@ -1,0 +1,64 @@
+// Dilemma Max User Keymap
+// Customize this file to change your key bindings
+
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/bt.h>
+#include <dt-bindings/zmk/rgb.h>
+
+#define DEFAULT 0
+#define LOWER   1
+#define RAISE   2
+#define ADJUST  3
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        default_layer {
+            bindings = <
+                &kp TAB    &kp Q  &kp W  &kp E     &kp R  &kp T        &kp Y  &kp U      &kp I      &kp O    &kp P     &kp BSPC
+                &kp LCTRL  &kp A  &kp S  &kp D     &kp F  &kp G        &kp H  &kp J      &kp K      &kp L    &kp SEMI  &kp SQT
+                &kp LSHFT  &kp Z  &kp X  &kp C     &kp V  &kp B        &kp N  &kp M      &kp COMMA  &kp DOT  &kp FSLH  &kp RSHFT
+                &kp ESC    &kp A  &kp S  &kp LGUI  &kp D  &kp LALT     &kp F  &kp RALT   &kp G      &kp H    &kp J     &kp ENTER
+                                         &mo LOWER &kp SPACE &kp BSPC  &kp DEL &kp RET  &mo RAISE
+            >;
+
+            sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN &inc_dec_kp C_VOL_UP C_VOL_DN>;
+        };
+
+        lower_layer {
+            bindings = <
+                &kp ESC    &kp N1    &kp N2    &kp N3    &kp N4     &kp N5       &kp N6     &kp N7    &kp N8    &kp N9     &kp N0    &kp DEL
+                &trans     &kp F1    &kp F2    &kp F3    &kp F4     &kp F5       &kp F6     &kp MINUS &kp EQUAL &kp LBKT   &kp RBKT  &kp BSLH
+                &trans     &kp F7    &kp F8    &kp F9    &kp F10    &kp F11      &kp F12    &trans    &trans    &kp GRAVE  &kp TILDE &trans
+                &trans     &trans    &trans    &trans    &trans     &trans       &trans     &trans    &trans    &trans     &trans    &trans
+                                               &trans    &trans     &trans       &trans     &trans    &mo ADJUST
+            >;
+
+            sensor-bindings = <&inc_dec_kp PG_UP PG_DN &inc_dec_kp PG_UP PG_DN>;
+        };
+
+        raise_layer {
+            bindings = <
+                &kp ESC    &kp EXCL  &kp AT    &kp HASH  &kp DLLR   &kp PRCNT    &kp CARET  &kp AMPS  &kp ASTRK &kp LPAR   &kp RPAR  &kp DEL
+                &trans     &trans    &trans    &trans    &trans     &trans       &kp LEFT   &kp DOWN  &kp UP    &kp RIGHT  &trans    &trans
+                &trans     &trans    &trans    &trans    &trans     &trans       &kp HOME   &kp PG_DN &kp PG_UP &kp END    &trans    &trans
+                &trans     &trans    &trans    &trans    &trans     &trans       &trans     &trans    &trans    &trans     &trans    &trans
+                                               &mo ADJUST &trans    &trans       &trans     &trans    &trans
+            >;
+
+            sensor-bindings = <&inc_dec_kp LEFT RIGHT &inc_dec_kp LEFT RIGHT>;
+        };
+
+        adjust_layer {
+            bindings = <
+                &bt BT_CLR   &bt BT_SEL 0 &bt BT_SEL 1 &bt BT_SEL 2 &bt BT_SEL 3 &bt BT_SEL 4  &trans &trans &trans &trans &trans &trans
+                &trans       &trans       &trans       &trans       &trans       &trans        &trans &trans &trans &trans &trans &trans
+                &trans       &rgb_ug RGB_TOG &rgb_ug RGB_HUI &rgb_ug RGB_SAI &rgb_ug RGB_BRI &trans  &trans &trans &trans &trans &trans &trans
+                &trans       &trans       &rgb_ug RGB_HUD &rgb_ug RGB_SAD &rgb_ug RGB_BRD &trans        &trans &trans &trans &trans &trans &trans
+                                                       &trans       &trans       &trans        &trans &trans &trans
+            >;
+        };
+    };
+};

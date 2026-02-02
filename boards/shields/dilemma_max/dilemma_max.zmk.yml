@@ -1,0 +1,14 @@
+file_format: "1"
+id: dilemma_max
+name: Dilemma Max
+type: shield
+url: https://github.com/lucamainitz/DilemmaMax_NiceNano
+requires:
+  - pro_micro
+siblings:
+  - dilemma_max_left
+  - dilemma_max_right
+features:
+  - keys
+  - encoder
+  - underglow

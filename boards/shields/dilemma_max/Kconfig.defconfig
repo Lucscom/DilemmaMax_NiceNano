@@ -1,0 +1,16 @@
+if SHIELD_DILEMMA_MAX_LEFT
+
+config ZMK_KEYBOARD_NAME
+    default "dilemma_max"
+
+config ZMK_SPLIT_ROLE_CENTRAL
+    default y
+
+endif # SHIELD_DILEMMA_MAX_LEFT
+
+if SHIELD_DILEMMA_MAX_LEFT || SHIELD_DILEMMA_MAX_RIGHT
+
+config ZMK_SPLIT
+    default y
+
+endif # SHIELD_DILEMMA_MAX_LEFT || SHIELD_DILEMMA_MAX_RIGHT
