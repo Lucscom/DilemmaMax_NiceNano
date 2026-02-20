@@ -46,9 +46,9 @@
         = <&pro_micro 14 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
         , <&pro_micro 16 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
         , <&pro_micro 10 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-        , <&pro_micro 1  (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-        , <&pro_micro 2  (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-        , <&pro_micro 7  (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
+        , <&gpio1 1      (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>  // P1.01 middle pad
+        , <&gpio1 2      (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>  // P1.02 middle pad
+        , <&gpio1 7      (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>  // P1.07 middle pad
         ;
 };
 
