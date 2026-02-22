@@ -17,11 +17,11 @@
         wakeup-source;
 
         row-gpios
-            = <&gpio1 13 GPIO_ACTIVE_HIGH>   // row 5 = top       | ZMK row 0
-            , <&gpio1 15  GPIO_ACTIVE_HIGH>  // row 4             | ZMK row 1
-            , <&gpio0 2 GPIO_ACTIVE_HIGH>    // row 3             | ZMK row 2
-            , <&gpio0 29 GPIO_ACTIVE_HIGH>   // row 2 = botton main | ZMK row 3
-            , <&gpio0 31 GPIO_ACTIVE_HIGH>   // row 1 = thumb     | ZMK row 4
+            = <&gpio0 31 GPIO_ACTIVE_HIGH>   // row 1 = thumb     | Matrix row 0
+            , <&gpio0 29 GPIO_ACTIVE_HIGH>   // row 2 = botton main | Matrix row 1
+            , <&gpio0 2 GPIO_ACTIVE_HIGH>    // row 3             | Matrix row 2
+            , <&gpio1 15 GPIO_ACTIVE_HIGH>   // row 4             | Matrix row 3
+            , <&gpio1 13 GPIO_ACTIVE_HIGH>   // row 5 = top       | Matrix row 4
             ;
 
         col-gpios
