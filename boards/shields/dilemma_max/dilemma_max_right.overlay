@@ -49,10 +49,6 @@
     status = "okay";
 };
 
-&sensors {
-    sensors = <&right_encoder>;
-};
-
 // Cirque/Procyon Trackpad via SPI
 // Note: Enable CONFIG_ZMK_POINTING in .conf to use
 &pro_micro_spi {
