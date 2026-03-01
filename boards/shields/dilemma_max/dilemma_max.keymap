@@ -36,7 +36,7 @@
                                   &kp C_MUTE &kp LALT &kp LGUI &mo 1      &kp BSPC &kp SPACE &kp RET &kp C_PP
             >;
 
-            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &inc_dec_kp C_AC_SCROLL_DOWN C_AC_SCROLL_UP>;
+            sensor-bindings = <&inc_dec_kp A B &inc_dec_kp C_AC_SCROLL_DOWN C_AC_SCROLL_UP>;
         };
 
         nav_layer {
