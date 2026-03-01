@@ -2,17 +2,8 @@
 
 #include <behaviors.dtsi>
 #include <dt-bindings/zmk/keys.h>
-#include <dt-bindings/zmk/pointing.h>
 
 / {
-    behaviors {
-        hscroll_encoder: hscroll_encoder {
-            compatible = "zmk,behavior-sensor-rotate-var";
-            #sensor-binding-cells = <2>;
-            bindings = <&msc>, <&msc>;
-        };
-    };
-
     keymap {
         compatible = "zmk,keymap";
 
@@ -49,7 +40,7 @@
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │     │   │   │   │   │   │   │   │   │   │   │   │     │
             // └─────┴───┴───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
-            //               │P/P│   │   │   │   │   │   │
+            //               │   │   │   │   │   │   │   │
             //               └───┴───┴───┘   └───┴───┴───┘
             // DKT = Diktat (C_VOICE_COMMAND)
             // MIS = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
@@ -59,7 +50,7 @@
                 &trans      &trans  &trans  &trans                           &trans                              &trans    &trans  &trans    &kp UP    &trans     &trans  &trans
                 &trans      &trans  &trans  &kp C_VOICE_COMMAND              &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &trans    &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
                 &trans      &trans  &trans  &trans                           &trans                              &trans    &trans  &trans    &trans    &trans     &trans  &trans
-                            &kp C_PP &trans  &trans                           &trans                              &trans    &trans  &trans    &trans
+                            &trans  &trans  &trans                           &trans                              &trans    &trans  &trans    &trans
             >;
 
             // Left encoder: volume | Right encoder: horizontal scroll (Maussimulation)
