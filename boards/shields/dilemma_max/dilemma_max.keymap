@@ -45,18 +45,20 @@
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │     │   │   │   │   │   │   │   │   │ ↑ │   │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │     │   │   │   │   │   │   │   │ ← │ ↓ │ → │   │     │
+            // │     │   │   │DKT│MIS│   │   │   │ ← │ ↓ │ → │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │     │   │   │   │   │   │   │   │   │   │   │   │     │
             // └─────┴───┴───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
             //               │   │   │   │   │   │   │   │
             //               └───┴───┴───┘   └───┴───┴───┘
+            // DKT = Diktat (C_VOICE_COMMAND)
+            // MIS = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
             bindings = <
-                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans    &trans    &trans     &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans    &kp UP    &trans     &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans    &trans    &trans     &trans  &trans
-                                &trans  &trans  &trans  &trans    &trans  &trans    &trans    &trans
+                &trans  &trans  &trans  &trans                           &trans                              &trans    &trans  &trans    &trans    &trans     &trans  &trans
+                &trans  &trans  &trans  &trans                           &trans                              &trans    &trans  &trans    &kp UP    &trans     &trans  &trans
+                &trans  &trans  &trans  &kp C_VOICE_COMMAND              &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &trans    &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
+                &trans  &trans  &trans  &trans                           &trans                              &trans    &trans  &trans    &trans    &trans     &trans  &trans
+                                &trans  &trans                           &trans                              &trans    &trans  &trans    &trans    &trans
             >;
 
             sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder>;
