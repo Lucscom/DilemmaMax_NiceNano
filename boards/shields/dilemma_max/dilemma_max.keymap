@@ -1,4 +1,4 @@
-// Dilemma Max - Simple Single Layer Keymap
+// Dilemma Max Keymap
 
 #include <behaviors.dtsi>
 #include <dt-bindings/zmk/keys.h>
@@ -6,10 +6,10 @@
 
 / {
     behaviors {
-        inc_dec_msc: inc_dec_msc {
-            compatible = "zmk,behavior-sensor-rotate-var";
-            #sensor-binding-cells = <2>;
-            bindings = <&msc>, <&msc>;
+        scroll_encoder: scroll_encoder {
+            compatible = "zmk,behavior-sensor-rotate";
+            #sensor-binding-cells = <0>;
+            bindings = <&msc SCRL_DOWN>, <&msc SCRL_UP>;
         };
     };
 
@@ -18,25 +18,48 @@
 
         default_layer {
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
-            // │ ESC │ 1 │ 2 │ 3 │ 4 │ 5 │   │ 6 │ 7 │ 8 │ 9 │ 0 │BSPC │
+            // │ ESC │ 1 │ 2 │ 3 │ 4 │ 5 │   │ 6 │ 7 │ 8 │ 9 │ 0 │  =  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │ TAB │ Q │ W │ E │ R │ T │   │ Y │ U │ I │ O │ P │  \  │
+            // │ TAB │ Q │ W │ E │ R │ T │   │ Y │ U │ I │ O │ P │  -  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │CAPS │ A │ S │ D │ F │ G │   │ H │ J │ K │ L │ ; │  '  │
+            // │LSFT │ A │ S │ D │ F │ G │   │ H │ J │ K │ L │ ; │  '  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │LSFT │ Z │ X │ C │ V │ B │   │ N │ M │ , │ . │ / │RSFT │
+            // │LCTL │ Z │ X │ C │ V │ B │   │ N │ M │ , │ . │ / │  \  │
             // └─────┴───┴───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
-            //               │CTL│GUI│SPC│   │ALT│RET│DEL│
-            //               └───┴───┴───┘   └───┴───┴───┘
+            //               │MUT│ALT│GUI│   │BSP│SPC│RET│
+            //               └───┴───┴MO1┘   └───┴───┴───┘
             bindings = <
-                &kp ESC    &kp N1  &kp N2  &kp N3    &kp N4   &kp N5                 &kp N6   &kp N7   &kp N8     &kp N9   &kp N0    &kp EQUAL
-                &kp TAB    &kp Q   &kp W   &kp E     &kp R    &kp T                  &kp Y    &kp U    &kp I      &kp O    &kp P     &kp MINUS
-                &kp LSHFT  &kp A   &kp S   &kp D     &kp F    &kp G                  &kp H    &kp J    &kp K      &kp L    &kp SEMI  &kp SQT
-                &kp LCTRL  &kp Z   &kp X   &kp C     &kp V    &kp B                  &kp N    &kp M    &kp COMMA  &kp DOT  &kp FSLH  &kp BSLH
-                                    &kp C_MUTE &kp LALT  &kp SPACE &kp LGUI      &kp BSPC &kp SPACE  &kp RET &kp C_PP
+                &kp ESC    &kp N1  &kp N2  &kp N3    &kp N4   &kp N5               &kp N6   &kp N7   &kp N8     &kp N9   &kp N0    &kp EQUAL
+                &kp TAB    &kp Q   &kp W   &kp E     &kp R    &kp T                &kp Y    &kp U    &kp I      &kp O    &kp P     &kp MINUS
+                &kp LSHFT  &kp A   &kp S   &kp D     &kp F    &kp G                &kp H    &kp J    &kp K      &kp L    &kp SEMI  &kp SQT
+                &kp LCTRL  &kp Z   &kp X   &kp C     &kp V    &kp B                &kp N    &kp M    &kp COMMA  &kp DOT  &kp FSLH  &kp BSLH
+                                  &kp C_MUTE &kp LALT &kp LGUI &mo 1      &kp BSPC &kp SPACE &kp RET &kp C_PP
             >;
 
-            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &inc_dec_msc SCRL_DOWN SCRL_UP>;
+            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder>;
+        };
+
+        nav_layer {
+            // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
+            // │     │   │   │   │   │   │   │   │   │   │   │   │     │
+            // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
+            // │     │   │   │   │   │   │   │   │   │ ↑ │   │   │     │
+            // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
+            // │     │   │   │   │   │   │   │   │ ← │ ↓ │ → │   │     │
+            // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
+            // │     │   │   │   │   │   │   │   │   │   │   │   │     │
+            // └─────┴───┴───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
+            //               │   │   │   │   │   │   │   │
+            //               └───┴───┴───┘   └───┴───┴───┘
+            bindings = <
+                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans    &trans    &trans     &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans    &kp UP    &trans     &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans    &trans  &trans    &trans    &trans     &trans  &trans
+                                &trans  &trans  &trans  &trans    &trans  &trans    &trans    &trans
+            >;
+
+            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder>;
         };
     };
 };
