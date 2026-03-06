@@ -10,25 +10,25 @@
     status = "okay";
 };
 
-// Cirque/Procyon Trackpad via SPI
-// Note: Enable CONFIG_ZMK_POINTING in .conf to use
-&pro_micro_spi {
-    status = "okay";
-    cs-gpios = <&pro_micro 9 GPIO_ACTIVE_LOW>;
-
-    trackpad: trackpad@0 {
-        compatible = "cirque,pinnacle";
-        reg = <0>;
-        spi-max-frequency = <1000000>;
-        status = "okay";
-        sensitivity = "4x";
-        sleep;
-    };
-};
-
-/ {
-    trackpad_listener {
-        compatible = "zmk,input-listener";
-        device = <&trackpad>;
-    };
-};
+// Cirque/Procyon Trackpad via SPI (optional — uncomment when installed)
+// Also enable CONFIG_ZMK_INPUT=y and CONFIG_SPI=y in config/dilemma_max.conf
+// &pro_micro_spi {
+//     status = "okay";
+//     cs-gpios = <&pro_micro 9 GPIO_ACTIVE_LOW>;
+//
+//     trackpad: trackpad@0 {
+//         compatible = "cirque,pinnacle";
+//         reg = <0>;
+//         spi-max-frequency = <1000000>;
+//         status = "okay";
+//         sensitivity = "4x";
+//         sleep;
+//     };
+// };
+//
+// / {
+//     trackpad_listener {
+//         compatible = "zmk,input-listener";
+//         device = <&trackpad>;
+//     };
+// };

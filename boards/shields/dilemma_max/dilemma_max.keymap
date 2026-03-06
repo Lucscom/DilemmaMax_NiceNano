@@ -6,7 +6,7 @@
 
 / {
     behaviors {
-        hscroll_encoder: hscroll_encoder {
+        scroll_encoder: scroll_encoder {
             compatible = "zmk,behavior-sensor-rotate-var";
             #sensor-binding-cells = <2>;
             bindings = <&msc>, <&msc>;
@@ -25,9 +25,9 @@
             // │LSFT │ A │ S │ D │ F │ G │   │ H │ J │ K │ L │ ; │  '  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │LCTL │ Z │ X │ C │ V │ B │   │ N │ M │ , │ . │ / │  \  │
-            // └─────┴───┴───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
-            //               │MUT│ALT│GUI│   │BSP│SPC│RET│
-            //               └───┴───┴MO1┘   └───┴───┴───┘
+            // └─────┴───┼───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
+            //           │MUT│ALT│GUI│MO1│   │BSP│SPC│RET│C_PP│
+            //           └───┴───┴───┴───┘   └───┴───┴───┴────┘
             bindings = <
                 &kp ESC    &kp N1  &kp N2  &kp N3    &kp N4   &kp N5               &kp N6   &kp N7   &kp N8     &kp N9   &kp N0    &kp EQUAL
                 &kp TAB    &kp Q   &kp W   &kp E     &kp R    &kp T                &kp Y    &kp U    &kp I      &kp O    &kp P     &kp MINUS
@@ -36,7 +36,7 @@
                                   &kp C_MUTE &kp LALT &kp LGUI &mo 1      &kp BSPC &kp SPACE &kp RET &kp C_PP
             >;
 
-            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &hscroll_encoder SCRL_DOWN SCRL_UP>;
+            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_DOWN SCRL_UP>;
         };
 
         nav_layer {
@@ -48,9 +48,9 @@
             // │     │   │   │DKT│MIS│   │   │   │ ← │ ↓ │ → │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │     │   │   │   │   │   │   │   │   │   │   │   │     │
-            // └─────┴───┴───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
-            //               │   │   │   │   │   │   │   │
-            //               └───┴───┴───┘   └───┴───┴───┘
+            // └─────┴───┼───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
+            //           │   │   │   │   │   │   │   │   │
+            //           └───┴───┴───┴───┘   └───┴───┴───┴───┘
             // DKT = Diktat (C_VOICE_COMMAND)
             // MIS = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
             // P/P = Play/Pause (linker Encoder-Klick im NAV-Layer)
@@ -63,7 +63,7 @@
             >;
 
             // Left encoder: volume | Right encoder: horizontal scroll (Maussimulation)
-            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &hscroll_encoder SCRL_LEFT SCRL_RIGHT>;
+            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_LEFT SCRL_RIGHT>;
         };
     };
 };

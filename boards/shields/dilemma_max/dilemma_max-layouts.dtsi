@@ -1,5 +1,5 @@
 // Physical layout for ZMK Studio
-// Dilemma Max: 54 keys (6x4 + 3 thumb per side)
+// Dilemma Max: 56 keys (6x4 + 4 thumb per side, outermost = encoder push)
 
 #include <physical_layouts.dtsi>
 
@@ -67,14 +67,16 @@
             , <&key_physical_attrs 100 100 1100  300       0     0     0>
             , <&key_physical_attrs 100 100 1200  313       0     0     0>
             , <&key_physical_attrs 100 100 1300  338       0     0     0>
-            // Left thumb cluster (encoder, thumb2, thumb3)
+            // Left thumb cluster (enc_push, thumb1, thumb2, thumb3)
+            , <&key_physical_attrs 100 100  200  412       0     0     0>
             , <&key_physical_attrs 100 100  300  425       0     0     0>
             , <&key_physical_attrs 100 100  400  438       0     0     0>
             , <&key_physical_attrs 100 100  500  450       0     0     0>
-            // Right thumb cluster (thumb1, thumb2, encoder)
+            // Right thumb cluster (thumb1, thumb2, thumb3, enc_push)
             , <&key_physical_attrs 100 100  800  450       0     0     0>
             , <&key_physical_attrs 100 100  900  438       0     0     0>
             , <&key_physical_attrs 100 100 1000  425       0     0     0>
+            , <&key_physical_attrs 100 100 1100  412       0     0     0>
             ;
     };
 };
