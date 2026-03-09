@@ -14,7 +14,7 @@
             #sensor-binding-cells = <2>;
             bindings = <&msc>, <&msc>;
             // tap-ms must be > trigger-period-ms (16ms) so the msc tick fires at least once
-            tap-ms = <50>;
+            tap-ms = <25>;
         };
     };
 
