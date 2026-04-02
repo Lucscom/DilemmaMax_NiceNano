@@ -23,20 +23,23 @@
         compatible = "zmk,keymap";
 
         default_layer {
+            // Deutsches QWERTZ-Layout (OS auf Deutsch eingestellt)
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
-            // │ ESC │ 1 │ 2 │ 3 │ 4 │ 5 │   │ 6 │ 7 │ 8 │ 9 │ 0 │  =  │
+            // │ ESC │ 1 │ 2 │ 3 │ 4 │ 5 │   │ 6 │ 7 │ 8 │ 9 │ 0 │ ß/?│
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │ TAB │ Q │ W │ E │ R │ T │   │ Y │ U │ I │ O │ P │  -  │
+            // │ TAB │ Q │ W │ E │ R │ T │   │ Z │ U │ I │ O │ P │  Ü  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │LSFT │ A │ S │ D │ F │ G │   │ H │ J │ K │ L │ ; │  '  │
+            // │LSFT │ A │ S │ D │ F │ G │   │ H │ J │ K │ L │ Ö │  Ä  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │LCTL │ Z │ X │ C │ V │ B │   │ N │ M │ , │ . │ / │  \  │
+            // │LCTL │ Y │ X │ C │ V │ B │   │ N │ M │ , │ . │ - │  #  │
             // └─────┴───┼───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
             //           │MUT│ALT│GUI│MO1│   │BSP│SPC│RET│C_PP│
             //           └───┴───┴───┴───┘   └───┴───┴───┴────┘
+            // Hinweis: Z/Y und Ö/Ä/Ü werden vom deutschen OS-Layout korrekt interpretiert
+            // SEMI → Ö, SQT → Ä, LBKT → Ü (per deutschem HID-Mapping)
             bindings = <
-                &kp ESC    &kp N1  &kp N2  &kp N3    &kp N4   &kp N5               &kp N6   &kp N7   &kp N8     &kp N9   &kp N0    &kp EQUAL
-                &kp TAB    &kp Q   &kp W   &kp E     &kp R    &kp T                &kp Y    &kp U    &kp I      &kp O    &kp P     &kp MINUS
+                &kp ESC    &kp N1  &kp N2  &kp N3    &kp N4   &kp N5               &kp N6   &kp N7   &kp N8     &kp N9   &kp N0    &kp MINUS
+                &kp TAB    &kp Q   &kp W   &kp E     &kp R    &kp T                &kp Y    &kp U    &kp I      &kp O    &kp P     &kp LBKT
                 &kp LSHFT  &kp A   &kp S   &kp D     &kp F    &kp G                &kp H    &kp J    &kp K      &kp L    &kp SEMI  &kp SQT
                 &kp LCTRL  &kp Z   &kp X   &kp C     &kp V    &kp B                &kp N    &kp M    &kp COMMA  &kp DOT  &kp FSLH  &kp BSLH
                                   &kp C_MUTE &kp LALT &kp LGUI &mo 1      &kp BSPC &kp SPACE &kp RET &kp C_PP
@@ -49,11 +52,11 @@
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
             // │     │BT0│BT1│BT2│BT3│BT4│   │   │   │   │   │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │     │   │   │   │   │   │   │   │   │ ↑ │   │   │     │
+            // │     │   │   │   │   │   │   │   │   │ ↑ │   │ + │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │     │   │   │FN │MIS│   │   │   │ ← │ ↓ │ → │   │     │
+            // │     │   │   │FN │MIS│ > │   │   │ ← │ ↓ │ → │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │     │   │   │   │   │   │   │TOG│BRI│BRD│EFF│HUI│ HUD │
+            // │     │   │   │   │   │ < │   │TOG│BRI│BRD│EFF│HUI│ HUD │
             // └─────┴───┼───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
             //           │   │   │   │   │   │   │   │   │
             //           └───┴───┴───┴───┘   └───┴───┴───┴───┘
@@ -63,9 +66,9 @@
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
             bindings = <
                 &trans      &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2        &bt BT_SEL 3                        &bt BT_SEL 4  &trans  &trans    &trans    &trans     &trans  &trans
-                &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP    &trans     &trans  &trans
-                &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &trans        &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
-                &trans      &trans        &trans        &trans               &trans                              &trans  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD
+                &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP    &kp RBKT   &trans  &trans
+                &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &kp LS(NUBS)  &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
+                &trans      &trans        &trans        &trans               &trans                              &kp NUBS  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD
                             &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &trans
             >;
 
