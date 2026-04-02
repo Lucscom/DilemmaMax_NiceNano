@@ -66,7 +66,7 @@
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
             bindings = <
                 &trans      &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2        &bt BT_SEL 3                        &bt BT_SEL 4  &trans  &trans    &trans    &trans     &trans  &trans
-                &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP    &kp RBKT   &trans  &trans
+                &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP   &trans     &kp RBKT  &trans
                 &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &kp LS(NUBS)  &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &kp NUBS  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD
                             &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &trans
