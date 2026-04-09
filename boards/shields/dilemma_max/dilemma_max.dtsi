@@ -14,6 +14,16 @@
         zmk,underglow = &led_strip;
     };
 
+    // Nice Nano v2: P0.13 controls the DC-DC boost converter (VDDMAIN)
+    // Must be HIGH for LEDs and display to receive power
+    vddmain: regulator_vddmain {
+        compatible = "regulator-fixed";
+        regulator-name = "VDDMAIN";
+        enable-gpios = <&gpio0 13 GPIO_ACTIVE_HIGH>;
+        regulator-boot-on;
+        startup-delay-us = <200>;
+    };
+
     kscan: kscan {
         compatible = "zmk,kscan-gpio-matrix";
         diode-direction = "row2col";
