@@ -28,6 +28,15 @@
     };
 };
 
+// P1.06 (CS/ADDR) auf LOW halten -> I2C Adresse 0x2A
+&gpio1 {
+    cirque_addr: cirque-addr {
+        gpio-hog;
+        gpios = <6 GPIO_ACTIVE_HIGH>;
+        output-low;
+    };
+};
+
 cirque_i2c: &i2c1 {
     compatible = "nordic,nrf-twim";
     status = "okay";
