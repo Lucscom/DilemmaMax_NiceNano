@@ -10,25 +10,50 @@
     status = "okay";
 };
 
-// Cirque/Procyon Trackpad via SPI (optional — uncomment when installed)
-// Also enable CONFIG_ZMK_INPUT=y and CONFIG_SPI=y in config/dilemma_max.conf
-// &pro_micro_spi {
-//     status = "okay";
-//     cs-gpios = <&pro_micro 9 GPIO_ACTIVE_LOW>;
-//
-//     trackpad: trackpad@0 {
-//         compatible = "cirque,pinnacle";
-//         reg = <0>;
-//         spi-max-frequency = <1000000>;
-//         status = "okay";
-//         sensitivity = "4x";
-//         sleep;
-//     };
-// };
-//
-// / {
-//     trackpad_listener {
-//         compatible = "zmk,input-listener";
-//         device = <&trackpad>;
-//     };
-// };
+// Disable I2C0 which shares P0.17/P0.20 with SPI0 (Cirque trackpad)
+&i2c0 {
+    status = "disabled";
+};
+
+// Cirque Trackpad via SPI0: SCK=P0.17(pin2), MOSI=P0.20(pin3), MISO=P0.08(pin0), CS=P1.06(pin9)
+&pinctrl {
+    spi0_default: spi0_default {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 17)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 20)>,
+                    <NRF_PSEL(SPIM_MISO, 0, 8)>;
+        };
+    };
+    spi0_sleep: spi0_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 17)>,
+                    <NRF_PSEL(SPIM_MOSI, 0, 20)>,
+                    <NRF_PSEL(SPIM_MISO, 0, 8)>;
+            low-power-enable;
+        };
+    };
+};
+
+cirque_spi: &spi0 {
+    compatible = "nordic,nrf-spim";
+    pinctrl-0 = <&spi0_default>;
+    pinctrl-1 = <&spi0_sleep>;
+    pinctrl-names = "default", "sleep";
+    cs-gpios = <&gpio1 6 GPIO_ACTIVE_LOW>;
+
+    trackpad: trackpad@0 {
+        compatible = "cirque,pinnacle";
+        reg = <0>;
+        spi-max-frequency = <1000000>;
+        status = "okay";
+        sensitivity = "4x";
+        sleep;
+    };
+};
+
+/ {
+    trackpad_listener {
+        compatible = "zmk,input-listener";
+        device = <&trackpad>;
+    };
+};
