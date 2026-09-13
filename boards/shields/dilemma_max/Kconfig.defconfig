@@ -6,6 +6,12 @@ config ZMK_KEYBOARD_NAME
 config ZMK_SPLIT_ROLE_CENTRAL
     default y
 
+config ZMK_USB_LOGGING
+    default y
+
+config LOG
+    default y
+
 endif # SHIELD_DILEMMA_MAX_LEFT
 
 if SHIELD_DILEMMA_MAX_LEFT || SHIELD_DILEMMA_MAX_RIGHT
