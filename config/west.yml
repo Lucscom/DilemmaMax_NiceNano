@@ -1,14 +1,19 @@
 manifest:
-  defaults:
-    revision: v0.3
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    # Additional modules containing boards/shields/custom code can be listed here as well
-    # See https://docs.zephyrproject.org/3.2.0/develop/west/manifest.html#projects
+    - name: petejohanson
+      url-base: https://github.com/petejohanson
+    - name: george-norton
+      url-base: https://github.com/george-norton
   projects:
     - name: zmk
-      remote: zmkfirmware
+      remote: petejohanson
+      revision: feat/pointers-move-scroll-ptp
       import: app/west.yml
+    - name: maxtouch-zephyr-module
+      remote: george-norton
+      revision: main
+      path: modules/maxtouch
   self:
     path: config
