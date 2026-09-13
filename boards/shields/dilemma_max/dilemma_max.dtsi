@@ -6,10 +6,11 @@
 #include <dt-bindings/led/led.h>
 #include <dt-bindings/pinctrl/nrf-pinctrl.h>
 
+#include "dilemma_max-layouts.dtsi"
+
 / {
     chosen {
-        zmk,kscan = &kscan;
-        zmk,matrix-transform = &default_transform;
+        zmk,physical-layout = &default_layout;
         zmk,underglow = &led_strip;
     };
 
