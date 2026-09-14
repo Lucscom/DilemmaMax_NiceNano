@@ -34,8 +34,9 @@
     };
 };
 
-&i2c0 {
-    compatible = "nordic,nrf-twim";
+// i2c1 = TWIM1 laut nRF52840 SoC-DTS, kein Board-Level-Konflikt
+// Kein compatible-Override noetig (bereits nordic,nrf-twim in SoC-DTS)
+&i2c1 {
     status = "okay";
     pinctrl-0 = <&trackpad_i2c_default>;
     pinctrl-1 = <&trackpad_i2c_sleep>;
