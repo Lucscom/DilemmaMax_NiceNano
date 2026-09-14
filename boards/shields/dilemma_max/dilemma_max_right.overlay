@@ -23,6 +23,7 @@
         group1 {
             psels = <NRF_PSEL(TWIM_SDA, 0, 22)>,
                     <NRF_PSEL(TWIM_SCL, 0, 24)>;
+            bias-pull-up;
         };
     };
     trackpad_i2c_sleep: trackpad_i2c_sleep {
@@ -34,14 +35,13 @@
     };
 };
 
-// i2c1 = TWIM1 laut nRF52840 SoC-DTS, kein Board-Level-Konflikt
-// Kein compatible-Override noetig (bereits nordic,nrf-twim in SoC-DTS)
 &i2c1 {
     status = "okay";
     pinctrl-0 = <&trackpad_i2c_default>;
     pinctrl-1 = <&trackpad_i2c_sleep>;
     pinctrl-names = "default", "sleep";
-    clock-frequency = <I2C_BITRATE_STANDARD>;
+    clock-frequency = <100000>;
+    zephyr,pm-device-runtime-auto;
 
     trackpad: trackpad@4a {
         compatible = "microchip,maxtouch";
