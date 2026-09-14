@@ -2,6 +2,11 @@
 
 #include "dilemma_max.dtsi"
 
+// Disable UART0 (uses P0.06 as TX) to free pin for CHG interrupt
+&uart0 {
+    status = "disabled";
+};
+
 &default_transform {
     col-offset = <6>;
 };
