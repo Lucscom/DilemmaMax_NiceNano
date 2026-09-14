@@ -4,14 +4,14 @@ manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    - name: philippkober6
-      url-base: https://github.com/philippkober6
+    - name: philippkober
+      url-base: https://github.com/philippkober
   projects:
     - name: zmk
       remote: zmkfirmware
       import: app/west.yml
     - name: maxtouch-zephyr-module
-      remote: philippkober6
+      remote: philippkober
       revision: main
       path: modules/maxtouch
   self:
