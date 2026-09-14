@@ -1,6 +1,7 @@
 // Dilemma Max - Right Side
 
 #include "dilemma_max.dtsi"
+#include <input/processors.dtsi>
 
 // Disable UART0 (uses P0.06 as TX) to free pin for CHG interrupt
 &uart0 {
@@ -46,8 +47,9 @@
         compatible = "microchip,maxtouch";
         reg = <0x4a>;
         chg-gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
-        sensor-width = <40>;
-        sensor-height = <60>;
+        sensor-width = <156>;
+        sensor-height = <91>;
+        swap-xy;
         touch_threshold = <40>;
         gain = <3>;
         touch_hysteresis = <10>;
@@ -59,5 +61,6 @@
     trackpad_listener {
         compatible = "zmk,input-listener";
         device = <&trackpad>;
+        input-processors = <&zip_xy_scaler 5 1>;
     };
 };
