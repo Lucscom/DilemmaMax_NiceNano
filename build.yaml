@@ -25,4 +25,4 @@ include:
     shield: dilemma_max_right
     # Temporaer: USB-Logging fuer Trackpad-Diagnose (screen /dev/tty.usbmodem* 115200)
     snippet: zmk-usb-logging
-    cmake-args: -DCONFIG_INPUT_LOG_LEVEL_DBG=y
+    cmake-args: -DCONFIG_INPUT_LOG_LEVEL_DBG=y -DCONFIG_LOG_PROCESS_THREAD_STARTUP_DELAY_MS=15000
