@@ -40,6 +40,9 @@
     pinctrl-1 = <&trackpad_i2c_sleep>;
     pinctrl-names = "default", "sleep";
     clock-frequency = <100000>;
+    // maxtouch-Treiber schreibt Registeradresse + Config-Block als zwei Messages ohne STOP,
+    // der TWIM-Treiber kopiert das in einen internen Puffer (Default 16 Bytes, zu klein fuer T100)
+    zephyr,concat-buf-size = <128>;
 
     trackpad: trackpad@4a {
         compatible = "microchip,maxtouch";
