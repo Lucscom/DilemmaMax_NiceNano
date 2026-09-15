@@ -54,10 +54,9 @@
         sensor-width = <42>;
         sensor-height = <50>;
         swap-xy;
-        touch_threshold = <40>;
-        gain = <3>;
-        touch_hysteresis = <10>;
-        charge_time = <27>;
+        // Empfindlichkeit: Modul-Defaults des Autors (touch_threshold 18, gain 4,
+        // touch_hysteresis 8, charge_time 10), mit denen er das Procyon 42x50 betreibt.
+        // Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
     };
 };
 
