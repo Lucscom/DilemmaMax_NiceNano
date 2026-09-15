@@ -7,6 +7,7 @@
 #include <dt-bindings/pinctrl/nrf-pinctrl.h>
 
 #include "dilemma_max-layouts.dtsi"
+#include <input/processors.dtsi>
 
 / {
     chosen {
@@ -73,6 +74,26 @@
         compatible = "zmk,keymap-sensors";
         sensors = <&left_encoder &right_encoder>;
         triggers-per-rotation = <20>;
+    };
+
+    // Trackpad (maXTouch, rechte Seite) wird per zmk,input-split vom Peripheral
+    // zum Central weitergereicht. Der Listener laeuft nur auf dem Central (links)
+    // und wird dort per status = "okay" aktiviert.
+    split_inputs {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        trackpad_split: trackpad_split@0 {
+            compatible = "zmk,input-split";
+            reg = <0>;
+        };
+    };
+
+    trackpad_listener: trackpad_listener {
+        compatible = "zmk,input-listener";
+        status = "disabled";
+        device = <&trackpad_split>;
+        input-processors = <&zip_xy_scaler 5 1>;
     };
 };
 

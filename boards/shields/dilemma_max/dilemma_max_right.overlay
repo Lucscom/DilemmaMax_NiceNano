@@ -1,7 +1,6 @@
 // Dilemma Max - Right Side
 
 #include "dilemma_max.dtsi"
-#include <input/processors.dtsi>
 
 // Disable UART0 (uses P0.06 as TX) to free pin for CHG interrupt
 &uart0 {
@@ -56,10 +55,7 @@
     };
 };
 
-/ {
-    trackpad_listener {
-        compatible = "zmk,input-listener";
-        device = <&trackpad>;
-        input-processors = <&zip_xy_scaler 5 1>;
-    };
+// Trackpad-Events an den Input-Split haengen (Peripheral -> Central)
+&trackpad_split {
+    device = <&trackpad>;
 };
