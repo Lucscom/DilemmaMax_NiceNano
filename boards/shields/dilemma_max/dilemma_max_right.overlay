@@ -53,6 +53,9 @@
         // Nur fuer interne Filter des Chips relevant, nicht fuer die Cursor-Skalierung.
         sensor-width = <42>;
         sensor-height = <50>;
+        // Procyon 42x50 belegt laut Schaltplan nur X0-X9 und Y0-Y11 (Chip-Maximum ist 14x24)
+        x-lines = <10>;
+        y-lines = <12>;
         swap-xy;
         // Empfindlichkeit: Modul-Defaults des Autors (touch_threshold 18, gain 4,
         // touch_hysteresis 8, charge_time 10), mit denen er das Procyon 42x50 betreibt.
