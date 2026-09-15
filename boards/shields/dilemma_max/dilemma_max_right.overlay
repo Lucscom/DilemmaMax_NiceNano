@@ -48,8 +48,9 @@
         compatible = "microchip,maxtouch";
         reg = <0x4a>;
         chg-gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
-        sensor-width = <156>;
-        sensor-height = <91>;
+        // Procyon: 40 x 60 mm (Matrix 14 x 24 -> Pitch 2.8 / 2.5 mm, wie im XIAO-Test)
+        sensor-width = <40>;
+        sensor-height = <60>;
         swap-xy;
         touch_threshold = <40>;
         gain = <3>;
