@@ -18,28 +18,41 @@
 
 // I2C0 ist auf der rechten Seite frei (Nice!View nur links)
 // SDA=P0.22(pin4), SCL=P0.24(pin5) - nRF52840 routing matrix erlaubt beliebige GPIOs
-// Software I2C (bit-bang) - umgeht alle Hardware-TWIM-Konflikte
-// SDA=P0.22(pin4), SCL=P0.24(pin5) als einfache GPIOs
-/ {
-    soft_i2c: i2c_soft {
-        compatible = "i2c-gpio";
-        sda-gpios = <&gpio0 22 (GPIO_OPEN_DRAIN | GPIO_ACTIVE_HIGH)>;
-        scl-gpios = <&gpio0 24 (GPIO_OPEN_DRAIN | GPIO_ACTIVE_HIGH)>;
-        #address-cells = <1>;
-        #size-cells = <0>;
-
-        trackpad: trackpad@4a {
-            compatible = "microchip,maxtouch";
-            reg = <0x4a>;
-            chg-gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
-            sensor-width = <156>;
-            sensor-height = <91>;
-            swap-xy;
-            touch_threshold = <40>;
-            gain = <3>;
-            touch_hysteresis = <10>;
-            charge_time = <27>;
+&pinctrl {
+    trackpad_i2c_default: trackpad_i2c_default {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 22)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 24)>;
+            bias-pull-up;
         };
+    };
+    trackpad_i2c_sleep: trackpad_i2c_sleep {
+        group1 {
+            psels = <NRF_PSEL(TWIM_SDA, 0, 22)>,
+                    <NRF_PSEL(TWIM_SCL, 0, 24)>;
+            low-power-enable;
+        };
+    };
+};
+
+&i2c1 {
+    status = "okay";
+    pinctrl-0 = <&trackpad_i2c_default>;
+    pinctrl-1 = <&trackpad_i2c_sleep>;
+    pinctrl-names = "default", "sleep";
+    clock-frequency = <100000>;
+
+    trackpad: trackpad@4a {
+        compatible = "microchip,maxtouch";
+        reg = <0x4a>;
+        chg-gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
+        sensor-width = <156>;
+        sensor-height = <91>;
+        swap-xy;
+        touch_threshold = <40>;
+        gain = <3>;
+        touch_hysteresis = <10>;
+        charge_time = <27>;
     };
 };
 
