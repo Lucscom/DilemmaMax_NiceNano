@@ -93,7 +93,8 @@
         compatible = "zmk,input-listener";
         status = "disabled";
         device = <&trackpad_split>;
-        input-processors = <&zip_xy_scaler 5 1>;
+        // 1024 Counts ueber ~45 mm = ~23 Counts/mm; 1:4 entspricht dem XIAO-Test (dX/4)
+        input-processors = <&zip_xy_scaler 1 4>;
     };
 };
 
