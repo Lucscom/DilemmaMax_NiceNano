@@ -24,4 +24,5 @@ include:
   - board: nice_nano_v2
     shield: dilemma_max_right
     # Temporaer: USB-Logging fuer Trackpad-Diagnose (screen /dev/tty.usbmodem* 115200)
-    cmake-args: -DCONFIG_ZMK_USB_LOGGING=y -DCONFIG_INPUT_LOG_LEVEL_DBG=y
+    snippet: zmk-usb-logging
+    cmake-args: -DCONFIG_INPUT_LOG_LEVEL_DBG=y
