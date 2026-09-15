@@ -7,6 +7,7 @@
 #include <dt-bindings/zmk/pointing.h>
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/rgb.h>
+#include <dt-bindings/zmk/ext_power.h>
 
 / {
     behaviors {
@@ -50,7 +51,7 @@
 
         nav_layer {
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
-            // │     │BT0│BT1│BT2│BT3│BT4│   │   │   │   │   │   │     │
+            // │     │BT0│BT1│BT2│BT3│BT4│   │   │   │   │   │EP+│ EP- │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │     │   │   │   │   │   │   │   │   │ ↑ │   │ + │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
@@ -63,9 +64,10 @@
             // BT0-4 = Bluetooth Profile 0-4
             // FN    = Globe/Fn-Taste (Diktat)
             // MIS   = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
+            // EP+/EP- = VCC-Pin (ext-power) ein/aus, versorgt Trackpad + LEDs
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
             bindings = <
-                &trans      &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2        &bt BT_SEL 3                        &bt BT_SEL 4  &trans  &trans    &trans    &trans     &trans  &trans
+                &trans      &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2        &bt BT_SEL 3                        &bt BT_SEL 4  &trans  &trans    &trans    &trans     &ext_power EP_ON  &ext_power EP_OFF
                 &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP   &trans     &kp RBKT  &trans
                 &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &kp LS(NUBS)  &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &kp NUBS  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD
