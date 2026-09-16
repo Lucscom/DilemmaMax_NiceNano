@@ -93,8 +93,9 @@
         compatible = "zmk,input-listener";
         status = "disabled";
         device = <&trackpad_split>;
-        // 1024 Counts ueber ~45 mm = ~23 Counts/mm; 1:4 entspricht dem XIAO-Test (dX/4)
-        input-processors = <&zip_xy_scaler 1 4>;
+        // ~17 Counts/mm auf beiden Achsen (siehe Kconfig.shield); 2:1 -> ein Zug ueber die
+        // volle Padbreite (42 mm) entspricht ~1400 px vor macOS-Beschleunigung
+        input-processors = <&zip_xy_scaler 2 1>;
     };
 };
 

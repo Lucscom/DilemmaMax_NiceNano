@@ -5,9 +5,14 @@ config SHIELD_DILEMMA_MAX_RIGHT
     def_bool $(shields_list_contains,dilemma_max_right)
 
 # Trackpad dimensions required by maxtouch-zephyr-module
+# Der Treiber konfiguriert die volle 14x24-Chipmatrix, das Procyon 42x50 nutzt davon
+# 10 X-Leitungen (4.2 mm Pitch) und 12 Y-Leitungen (4.13 mm Pitch). Mit 1024 Counts pro
+# Achse ergibt das 17.4 Counts/mm entlang X, aber nur 10.3 entlang Y. Der Y-Bereich wird
+# deshalb auf 1730 gestreckt, damit beide Achsen gleich schnell sind. Wegen swap-xy im
+# Overlay landet der Chip-Y-Bereich in ZMK_TRACKPAD_LOGICAL_X.
 config ZMK_TRACKPAD_LOGICAL_X
     int "Trackpad logical X resolution"
-    default 1024
+    default 1730
 
 config ZMK_TRACKPAD_LOGICAL_Y
     int "Trackpad logical Y resolution"
