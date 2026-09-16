@@ -53,9 +53,12 @@
         // Nur fuer interne Filter des Chips relevant, nicht fuer die Cursor-Skalierung.
         sensor-width = <42>;
         sensor-height = <50>;
-        // Procyon 42x50 belegt laut Schaltplan nur X0-X9 und Y0-Y11 (Chip-Maximum ist 14x24)
-        x-lines = <10>;
-        y-lines = <12>;
+        // Procyon 42x50 belegt nur 10 X- und 12 Y-Leitungen. Mit x-lines/y-lines = 10/12
+        // liefert der Chip aber keine Touch-Messages mehr (T37-Referenzen zeigen, dass er
+        // dann Y0-5 und Y12-17 misst). Daher volle 14x24-Matrix; fuer relative Mausbewegung
+        // spielt der ungenutzte Koordinatenbereich keine Rolle.
+        // x-lines = <10>;
+        // y-lines = <12>;
         // Temporaer: T37-Rohdaten ins Log (Referenzen einmal, Deltas alle 3s)
         diag-dump;
         swap-xy;
