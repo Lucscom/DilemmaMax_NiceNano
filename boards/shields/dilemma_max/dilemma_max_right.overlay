@@ -65,6 +65,12 @@
         // Empfindlichkeit: Modul-Defaults des Autors (touch_threshold 18, gain 4,
         // touch_hysteresis 8, charge_time 10), mit denen er das Procyon 42x50 betreibt.
         // Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
+        // Ohne Abdeckung liefert ein Finger ~500 Counts (T37), Randnodes -10..-30:
+        // Threshold deutlich ueber dem Rauschen, aber weit unter dem Signal.
+        touch_threshold = <60>;
+        touch_hysteresis = <20>;
+        internal_touch_threshold = <30>;
+        internal_touch_hysteresis = <10>;
     };
 };
 
