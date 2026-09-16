@@ -71,6 +71,9 @@
         touch_hysteresis = <20>;
         internal_touch_threshold = <30>;
         internal_touch_hysteresis = <10>;
+        // Nur Mutual-Capacitance-Messung (Binding: "1 will always work"); mit 3 koennte
+        // die Erkennung auf unkonfigurierten Self-Cap-Daten (T109/T111 leer) laufen.
+        allowed_measurement_types = <1>;
     };
 };
 
