@@ -61,7 +61,8 @@
         // y-lines = <12>;
         // Diagnose: T37-Rohdaten ins Log (Referenzen einmal, Deltas alle 3s)
         // diag-dump;
-        swap-xy;
+        // swap-xy war falsch: Finger links-rechts bewegte den Cursor oben-unten
+        // swap-xy;
         // Empfindlichkeit: Modul-Defaults des Autors (touch_threshold 18, gain 4,
         // touch_hysteresis 8, charge_time 10), mit denen er das Procyon 42x50 betreibt.
         // Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
