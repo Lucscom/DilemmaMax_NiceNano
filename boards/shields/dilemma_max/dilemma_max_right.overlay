@@ -48,28 +48,25 @@
         compatible = "microchip,maxtouch";
         reg = <0x4a>;
         chg-gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
-        // Procyon: 49.6 x 42 mm, Matrix 14 x 24 Leiterbahnen. Annahme: 14 X-Leitungen
-        // ueber die 42-mm-Seite (Pitch 3.0), 24 Y-Leitungen ueber 49.6 mm (Pitch 2.1).
-        // Nur fuer interne Filter des Chips relevant, nicht fuer die Cursor-Skalierung.
+        // Procyon 42x50 (George Norton). Werte fuer Matrix, Pitch, Hysterese, Entprellung,
+        // T56 und T80 aus dessen QMK-Treiber (drivers/sensors/procyon.h, Zweig
+        // multitouch_experiment), der genau dieses Pad fuer den Dilemma 4x6 konfiguriert.
         sensor-width = <42>;
         sensor-height = <50>;
-        // Procyon 42x50 belegt nur 10 X- und 12 Y-Leitungen. Mit x-lines/y-lines = 10/12
-        // liefert der Chip aber keine Touch-Messages mehr (T37-Referenzen zeigen, dass er
-        // dann Y0-5 und Y12-17 misst). Daher volle 14x24-Matrix; fuer relative Mausbewegung
-        // spielt der ungenutzte Koordinatenbereich keine Rolle.
-        // x-lines = <10>;
-        // y-lines = <12>;
+        x-lines = <10>;              // Pad belegt X0-X9 ...
+        y-lines = <12>;              // ... und Y0-Y11 (Chip-Maximum 14x24)
+        x-pitch = <38>;              // 3.8 mm Raster
+        y-pitch = <38>;
+        move-hysteresis-next = <16>; // weniger Zittern bei ruhendem/langsamem Finger
+        confthr = <5>;               // Touch-Entprellung
+        shieldless-enable;           // T56 Rauschunterdrueckung
+        retransmission_compensation_disable; // T80 aus
         // Diagnose: T37-Rohdaten ins Log (Referenzen einmal, Deltas alle 3s)
         // diag-dump;
         // swap-xy war falsch: Finger links-rechts bewegte den Cursor oben-unten
         // swap-xy;
-        // Empfindlichkeit: Modul-Defaults des Autors (touch_threshold 18, gain 4,
-        // touch_hysteresis 8, charge_time 10), mit denen er das Procyon 42x50 betreibt.
-        // Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
-        // 2 mm PLA-Abdeckung: Finger im T37-Dump +50 (positiv, sauber), aber bei
-        // Threshold 18 keine Erkennung. Empirisch liegt die Erkennungsschwelle ca. 6x ueber
-        // den T37-Deltas (Geist +480 bei Threshold 60 erkannt, +344 nicht). Daher Gain hoch
-        // und Threshold runter.
+        // Empfindlichkeit fuer die 2 mm PLA-Abdeckung (Autor nutzt gain 10 / thr 20 bei
+        // duennerer Abdeckung). Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
         gain = <8>;
         touch_threshold = <8>;
         touch_hysteresis = <3>;

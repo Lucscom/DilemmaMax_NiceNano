@@ -93,9 +93,9 @@
         compatible = "zmk,input-listener";
         status = "disabled";
         device = <&trackpad_split>;
-        // ~17 Counts/mm auf beiden Achsen (siehe Kconfig.shield); 2:1 -> ein Zug ueber die
-        // volle Padbreite (42 mm) entspricht ~1400 px vor macOS-Beschleunigung
-        input-processors = <&zip_xy_scaler 2 1>;
+        // 24.4 Counts/mm auf beiden Achsen (siehe Kconfig.shield); 3:2 ergibt dieselbe
+        // Geschwindigkeit wie vorher (17 Counts/mm x 2)
+        input-processors = <&zip_xy_scaler 3 2>;
     };
 };
 
