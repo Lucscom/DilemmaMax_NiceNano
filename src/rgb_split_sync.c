@@ -25,6 +25,7 @@
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/atomic.h>
 
 #include <dt-bindings/zmk/rgb.h>
 #include <zmk/activity.h>
@@ -39,9 +40,17 @@ LOG_MODULE_REGISTER(dilemma_max_rgb_sync, CONFIG_ZMK_LOG_LEVEL);
 // Das Peripheral sucht das Behavior ueber seinen Device-Namen (max. 8 Zeichen).
 #define RGB_UG_DEV DEVICE_DT_NAME(DT_NODELABEL(rgb_ug))
 
-// Abstand zum Activity-Event, damit der Auto-Off-Listener von ZMK den lokalen
-// Zustand sicher schon gesetzt hat - die Reihenfolge der Listener ist Linker-Order.
-#define DISPATCH_DELAY K_MSEC(50)
+// Kleiner Abstand zum Activity-Event, damit der Auto-Off-Listener von ZMK den
+// lokalen Zustand sicher schon gesetzt hat - die Listener-Reihenfolge ist
+// Linker-Order. Die Listener-Kette laeuft in Mikrosekunden durch.
+#define DISPATCH_DELAY K_MSEC(5)
+
+// Nach dem Aufwachen verbindet sich ein Peripheral, das im Deep Sleep war, erst ein
+// paar Sekunden spaeter - bis dahin laeuft jedes Kommando ins Leere. Es koppelt sein
+// Underglow deshalb selbst an die Verbindung (src/rgb_split_follow.c) und schaltet
+// beim Verbinden ein. Diese Nachschuesse korrigieren das, falls das falsch war.
+#define WAKE_RETRIES 2
+#define WAKE_RETRY_INTERVAL K_SECONDS(2)
 
 static void rgb_split_sync_send(bool on) {
     struct zmk_behavior_binding binding = {
@@ -67,12 +76,19 @@ static void rgb_split_sync_send(bool on) {
 static void rgb_split_sync_work_cb(struct k_work *work);
 
 static K_WORK_DELAYABLE_DEFINE(rgb_split_sync_work, rgb_split_sync_work_cb);
+static atomic_t wake_retries_left;
 
 static void rgb_split_sync_work_cb(struct k_work *work) {
     bool on = false;
 
     if (zmk_rgb_underglow_get_state(&on) == 0) {
         rgb_split_sync_send(on);
+    }
+
+    if (atomic_get(&wake_retries_left) > 0) {
+        atomic_dec(&wake_retries_left);
+        k_work_reschedule(&rgb_split_sync_work, WAKE_RETRY_INTERVAL);
+        return;
     }
 
 #if CONFIG_DILEMMA_MAX_RGB_SPLIT_SYNC_RESYNC_SEC > 0
@@ -89,6 +105,7 @@ static int rgb_split_sync_listener(const zmk_event_t *eh) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
+    atomic_set(&wake_retries_left, ev->state == ZMK_ACTIVITY_ACTIVE ? WAKE_RETRIES : 0);
     k_work_reschedule(&rgb_split_sync_work, DISPATCH_DELAY);
 
     return ZMK_EV_EVENT_BUBBLE;

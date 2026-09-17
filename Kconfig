@@ -45,3 +45,16 @@ config DILEMMA_MAX_RGB_SLEEP_BLANK
 
       Auf einer Seite mit aktiver Idle-Abschaltung kostet die Option nur einen
       zusaetzlichen SPI-Transfer beim Einschlafen.
+
+config DILEMMA_MAX_RGB_SPLIT_FOLLOW
+    bool "Underglow des Peripherals an die Split-Verbindung koppeln"
+    default y
+    depends on ZMK_RGB_UNDERGLOW && ZMK_SPLIT_BLE && !ZMK_SPLIT_ROLE_CENTRAL
+    help
+      Gegenstueck zu CONFIG_DILEMMA_MAX_RGB_SPLIT_SYNC auf der Peripheral-Seite.
+
+      Weil das Peripheral nicht mehr selbst ueber sein Underglow entscheidet, bliebe
+      der Strip an, sobald vom Central nichts mehr kommt - es ausgeschaltet ist, im
+      Deep Sleep liegt oder ausser Reichweite. Mit dieser Option geht der Strip aus,
+      wenn die Split-Verbindung wegfaellt, und beim Verbinden wieder an.
+
