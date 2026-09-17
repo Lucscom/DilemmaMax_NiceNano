@@ -1,0 +1,47 @@
+# Dilemma Max - eigene Build-Optionen
+
+config DILEMMA_MAX_RGB_SPLIT_SYNC
+    bool "Underglow-Zustand vom Central an die Peripherals spiegeln"
+    default y
+    depends on ZMK_RGB_UNDERGLOW && ZMK_SPLIT && ZMK_SPLIT_ROLE_CENTRAL
+    help
+      Der Activity-State, an dem CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE haengt, wird
+      von ZMK nicht ueber den Split-Link uebertragen. Das Central sieht die Tasten
+      beider Haelften, ein Peripheral nur seine eigenen - ohne diese Option bleibt
+      die rechte Haelfte also dunkel, solange man links tippt.
+
+      Ist die Option aktiv, schickt das Central bei jedem Wechsel zwischen aktiv und
+      idle das rgb_ug-Behavior mit RGB_ON bzw. RGB_OFF an alle Peripherals. Auf den
+      Peripherals gehoert dann CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE=n gesetzt,
+      sonst schalten sie sich zusaetzlich selbst ab.
+
+config DILEMMA_MAX_RGB_SPLIT_SYNC_RESYNC_SEC
+    int "Abstand in Sekunden, in dem der Zustand erneut geschickt wird (0 = aus)"
+    default 120
+    depends on DILEMMA_MAX_RGB_SPLIT_SYNC
+    help
+      Faengt den Fall ab, dass ein Peripheral neu startet und dabei einen veralteten
+      Underglow-Zustand aus den Settings wiederherstellt. Zwischen zwei Idle-Wechseln
+      passiert sonst nichts, was das korrigieren wuerde.
+
+      Der Wert muss ueber CONFIG_ZMK_SETTINGS_SAVE_DEBOUNCE (Default 60000 ms) liegen:
+      jedes empfangene Kommando schiebt auf dem Peripheral den anstehenden Settings-
+      Save nach hinten, bei einem kuerzeren Abstand wuerde der Save nie ausgefuehrt
+      und z.B. eine geaenderte Helligkeit dort nicht mehr persistiert.
+
+config DILEMMA_MAX_RGB_SLEEP_BLANK
+    bool "Underglow vor dem Deep Sleep synchron loeschen"
+    default y
+    depends on ZMK_RGB_UNDERGLOW && ZMK_SLEEP
+    help
+      WS2812/SK6805 behalten ihren letzten Zustand, sobald der Controller nichts mehr
+      sendet. Geht eine Haelfte mit leuchtendem Strip in sys_poweroff(), leuchtet der
+      Strip weiter und zieht den Akku leer.
+
+      Ohne CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE fehlt die Idle-Abschaltung, die den
+      Strip sonst laengst vor dem Sleep-Timeout schwarz macht. zmk_rgb_underglow_off()
+      allein genuegt nicht, weil es das Loeschen auf die Low-Prio-Workqueue schiebt,
+      die vor dem Poweroff nicht mehr laeuft.
+
+      Auf einer Seite mit aktiver Idle-Abschaltung kostet die Option nur einen
+      zusaetzlichen SPI-Transfer beim Einschlafen.
