@@ -57,9 +57,12 @@
         y-lines = <12>;              // ... und Y0-Y11 (Chip-Maximum 14x24)
         x-pitch = <38>;              // 3.8 mm Raster
         y-pitch = <38>;
-        // Autor: 16 bei 1920 Counts. Bei uns 8 (2048 Counts) = ~0.16 mm wie vor dem Umbau;
-        // 16 bei 1024 Counts erzeugte sichtbare Cursorspruenge
-        move-hysteresis-next = <8>;
+        // Hysterese klein halten: bei 10/8 haelt der Chip langsame Bewegungen zurueck und
+        // gibt sie als 9-15-Counts-Schritt aus (im Log messbar) -> Mikroruckeln.
+        // Gegen Zittern im Stillstand stattdessen die Glaettung des Chips.
+        move-hysteresis-initial = <3>;
+        move-hysteresis-next = <2>;
+        move-smooth = <32>;
         confthr = <5>;               // Touch-Entprellung
         shieldless-enable;           // T56 Rauschunterdrueckung
         retransmission_compensation_disable; // T80 aus
