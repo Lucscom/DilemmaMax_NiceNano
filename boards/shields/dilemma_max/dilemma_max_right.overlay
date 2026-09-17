@@ -57,7 +57,9 @@
         y-lines = <12>;              // ... und Y0-Y11 (Chip-Maximum 14x24)
         x-pitch = <38>;              // 3.8 mm Raster
         y-pitch = <38>;
-        move-hysteresis-next = <16>; // weniger Zittern bei ruhendem/langsamem Finger
+        // Autor: 16 bei 1920 Counts. Bei uns 8 (2048 Counts) = ~0.16 mm wie vor dem Umbau;
+        // 16 bei 1024 Counts erzeugte sichtbare Cursorspruenge
+        move-hysteresis-next = <8>;
         confthr = <5>;               // Touch-Entprellung
         shieldless-enable;           // T56 Rauschunterdrueckung
         retransmission_compensation_disable; // T80 aus

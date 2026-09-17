@@ -6,15 +6,17 @@ config SHIELD_DILEMMA_MAX_RIGHT
 
 # Trackpad dimensions required by maxtouch-zephyr-module
 # Logischer Koordinatenbereich des Trackpads. Mit der echten 10x12-Matrix deckt der
-# Bereich genau die Padflaeche ab: X 1024 Counts ueber 42 mm = 24.4 Counts/mm,
-# Y 1219 Counts ueber 50 mm = 24.4 Counts/mm, damit beide Achsen gleich schnell sind.
+# Bereich genau die Padflaeche ab: X 2048 Counts ueber 42 mm = 48.8 Counts/mm,
+# Y 2438 Counts ueber 50 mm = 48.8 Counts/mm, damit beide Achsen gleich schnell sind.
+# Feiner als 1024, damit Hysterese und Scroll-Schritte nicht grob werden (der QMK-Treiber
+# des Autors arbeitet mit 1920).
 config ZMK_TRACKPAD_LOGICAL_X
     int "Trackpad logical X resolution"
-    default 1024
+    default 2048
 
 config ZMK_TRACKPAD_LOGICAL_Y
     int "Trackpad logical Y resolution"
-    default 1219
+    default 2438
 
 config ZMK_TRACKPAD_PHYSICAL_X
     int "Trackpad physical X size (0.1mm units)"

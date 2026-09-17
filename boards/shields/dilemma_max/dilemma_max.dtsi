@@ -93,9 +93,9 @@
         compatible = "zmk,input-listener";
         status = "disabled";
         device = <&trackpad_split>;
-        // 24.4 Counts/mm auf beiden Achsen (siehe Kconfig.shield); 3:2 ergibt dieselbe
-        // Geschwindigkeit wie vorher (17 Counts/mm x 2)
-        input-processors = <&zip_xy_scaler 3 2>;
+        // 48.8 Counts/mm auf beiden Achsen (siehe Kconfig.shield); 3:4 ergibt dieselbe
+        // Geschwindigkeit wie vorher (~36 Counts pro mm Fingerweg)
+        input-processors = <&zip_xy_scaler 3 4>;
     };
 };
 
