@@ -57,9 +57,11 @@
         y-lines = <12>;              // ... und Y0-Y11 (Chip-Maximum 14x24)
         x-pitch = <38>;              // 3.8 mm Raster
         y-pitch = <38>;
-        // Zurueck auf den Stand von 6e63ec0: Hysterese 3/2 mit MOVSMOOTH 32 war deutlich
-        // schlechter (Glaettung verzoegert die Bewegung zusaetzlich).
-        move-hysteresis-next = <8>;
+        // Hysterese niedrig, aber OHNE MOVSMOOTH (die Glaettung war die Verschlechterung).
+        // Mit 10/8 sammelt der Chip Rauschen bis zur Schwelle und meldet dann 9-11 Counts
+        // auf einmal - im Log bei ruhendem Finger und bei langsamer Bewegung sichtbar.
+        move-hysteresis-initial = <3>;
+        move-hysteresis-next = <2>;
         // Chip misst im aktiven Zustand freilaufend statt alle 10 ms (255 = free run, wie im
         // QMK-Treiber des Autors). Gleichmaessigere Meldungen, etwas hoeherer Verbrauch
         // solange ein Finger aufliegt.
