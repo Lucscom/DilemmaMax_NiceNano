@@ -60,6 +60,10 @@
         // Zurueck auf den Stand von 6e63ec0: Hysterese 3/2 mit MOVSMOOTH 32 war deutlich
         // schlechter (Glaettung verzoegert die Bewegung zusaetzlich).
         move-hysteresis-next = <8>;
+        // Chip misst im aktiven Zustand freilaufend statt alle 10 ms (255 = free run, wie im
+        // QMK-Treiber des Autors). Gleichmaessigere Meldungen, etwas hoeherer Verbrauch
+        // solange ein Finger aufliegt.
+        active-acq-time-ms = <255>;
         confthr = <5>;               // Touch-Entprellung
         shieldless-enable;           // T56 Rauschunterdrueckung
         retransmission_compensation_disable; // T80 aus
