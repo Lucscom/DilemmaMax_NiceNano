@@ -76,12 +76,13 @@
         // Empfindlichkeit fuer die 2 mm PLA-Abdeckung (Autor nutzt gain 10 / thr 20 bei
         // duennerer Abdeckung). Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
         // Duenne Platte: Fingersignal 100-130 Counts bei Rauschen 2-3 (T37-Messung).
-        // Schwellen daher auf die Werte des Autors, das beruhigt Cursor und Ghost-Touches.
+        // ACHTUNG: touch_threshold 20 = gar keine Erkennung mehr (wie 18 bei der 2-mm-Platte).
+        // Die Schwelle dieses Chips skaliert nicht mit den T37-Counts; 8 ist der belegte Wert.
         gain = <8>;
-        touch_threshold = <20>;
-        touch_hysteresis = <10>;
-        internal_touch_threshold = <10>;
-        internal_touch_hysteresis = <5>;
+        touch_threshold = <8>;
+        touch_hysteresis = <3>;
+        internal_touch_threshold = <4>;
+        internal_touch_hysteresis = <2>;
         // Nur Mutual-Capacitance-Messung (Binding: "1 will always work"); mit 3 koennte
         // die Erkennung auf unkonfigurierten Self-Cap-Daten (T109/T111 leer) laufen.
         allowed_measurement_types = <1>;
