@@ -70,16 +70,18 @@
         shieldless-enable;           // T56 Rauschunterdrueckung
         retransmission_compensation_disable; // T80 aus
         // Diagnose: T37-Rohdaten ins Log (Referenzen einmal, Deltas alle 3s)
-        diag-dump;
+        // diag-dump;
         // swap-xy war falsch: Finger links-rechts bewegte den Cursor oben-unten
         // swap-xy;
         // Empfindlichkeit fuer die 2 mm PLA-Abdeckung (Autor nutzt gain 10 / thr 20 bei
         // duennerer Abdeckung). Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
+        // Duenne Platte: Fingersignal 100-130 Counts bei Rauschen 2-3 (T37-Messung).
+        // Schwellen daher auf die Werte des Autors, das beruhigt Cursor und Ghost-Touches.
         gain = <8>;
-        touch_threshold = <8>;
-        touch_hysteresis = <3>;
-        internal_touch_threshold = <4>;
-        internal_touch_hysteresis = <2>;
+        touch_threshold = <20>;
+        touch_hysteresis = <10>;
+        internal_touch_threshold = <10>;
+        internal_touch_hysteresis = <5>;
         // Nur Mutual-Capacitance-Messung (Binding: "1 will always work"); mit 3 koennte
         // die Erkennung auf unkonfigurierten Self-Cap-Daten (T109/T111 leer) laufen.
         allowed_measurement_types = <1>;
