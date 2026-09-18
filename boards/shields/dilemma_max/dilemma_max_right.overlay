@@ -70,7 +70,7 @@
         shieldless-enable;           // T56 Rauschunterdrueckung
         retransmission_compensation_disable; // T80 aus
         // Diagnose: T37-Rohdaten ins Log (Referenzen einmal, Deltas alle 3s)
-        // diag-dump;
+        diag-dump;
         // swap-xy war falsch: Finger links-rechts bewegte den Cursor oben-unten
         // swap-xy;
         // Empfindlichkeit fuer die 2 mm PLA-Abdeckung (Autor nutzt gain 10 / thr 20 bei
