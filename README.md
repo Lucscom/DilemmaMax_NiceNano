@@ -50,7 +50,8 @@ chasing that as if it were a software bug.
 ```
 boards/shields/dilemma_max/    shield definition, keymap, overlays
 config/                        west manifest and per-side Kconfig
-src/                           RGB split helpers compiled into the ZMK app
+src/                           RGB split helpers and the nice!view status screen,
+                               compiled into the ZMK app
 Kconfig, CMakeLists.txt        make this repo a Zephyr module for those sources
 build.yaml                     GitHub Actions build matrix
 cirque_test/                   Arduino sketches used to bring the pad up
@@ -198,6 +199,25 @@ Dilemma 4×6. They belong together: threshold 20 only works alongside
 `charge_time = 1`, `gain = 10` and both measurement types enabled. Raising the
 touch threshold without those turns touch reporting off completely — a mistake
 made twice in this project.
+
+---
+
+## Display
+
+The nice!view on the left half runs a custom status screen
+(`src/status_screen.c`) instead of the widget that ships with the `nice_view`
+shield. For now it shows the battery level of both halves, left on top, right
+below, each as a percentage with a bar. A bolt next to the left block means USB
+is powering the left half; ZMK does not transmit the charging state of the
+peripheral. `--` on the right block means no battery report yet or the right
+half is disconnected (ZMK reports 0 % on disconnect).
+
+It is switched on in `config/dilemma_max_left.conf` with
+`CONFIG_NICE_VIEW_WIDGET_STATUS=n`, which lets `CONFIG_DILEMMA_MAX_STATUS_SCREEN`
+default to on. That option also turns on
+`CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING` so the central collects the
+right half's level. Like the stock widget, each block is drawn upright on a
+68×68 canvas and rotated 90°, because the 160×68 panel stands on its side.
 
 ---
 
