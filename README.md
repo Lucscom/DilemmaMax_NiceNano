@@ -212,7 +212,7 @@ shield. Read upright, top to bottom:
 |---|---|
 | Top | Battery of both halves (`L`, `R`) as a small bar with percentage. A bolt after the left bar means USB is powering the left half. `OFFLINE` replaces the right bar while the right half is not connected (ZMK reports 0 % on disconnect and before the first report). Below: USB or a Wi-Fi style symbol for Bluetooth with the profile number, and the state `WIRED`, `ONLINE`, `WAITING` (paired host not connected) or `PAIRING` (profile is empty). |
 | Middle | Held modifiers `SHFT`, `CTRL`, `OPT`, `CMD` (left and right combined), each inverted while held. |
-| Bottom | Active layer in a frame, taken from `display-name` in the keymap. |
+| Bottom | Active layer as an inverted band, taken from `display-name` in the keymap. |
 
 ZMK v0.3 does not transmit the charging state of the peripheral, so the right
 bar never shows a bolt. ZMK also never raises `zmk_modifiers_state_changed`,

@@ -259,7 +259,7 @@ static void draw_middle(void) {
     rotate_canvas(canvas, middle_cbuf);
 }
 
-// Aktiver Layer als Text mit Rahmen in den sichtbaren 24 px
+// Aktiver Layer als invertiertes Band in den sichtbaren 24 px
 static void draw_bottom(void) {
     lv_obj_t *canvas = bottom_canvas;
 
@@ -268,18 +268,17 @@ static void draw_bottom(void) {
     lv_draw_rect_dsc_t fg;
     init_rect(&fg, COLOR_FG);
     lv_draw_label_dsc_t label_dsc;
-    init_label(&label_dsc, COLOR_FG, &lv_font_montserrat_16, LV_TEXT_ALIGN_CENTER);
+    init_label(&label_dsc, COLOR_BG, &lv_font_montserrat_16, LV_TEXT_ALIGN_CENTER);
 
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
-    lv_canvas_draw_rect(canvas, 2, 2, BLOCK_SIZE - 4, 20, &fg);
-    lv_canvas_draw_rect(canvas, 3, 3, BLOCK_SIZE - 6, 18, &bg);
+    lv_canvas_draw_rect(canvas, 0, 2, BLOCK_SIZE, 21, &fg);
 
     if (state.layer.name != NULL && strlen(state.layer.name) > 0) {
-        lv_canvas_draw_text(canvas, 0, 3, BLOCK_SIZE, &label_dsc, state.layer.name);
+        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, state.layer.name);
     } else {
         char text[12];
         snprintf(text, sizeof(text), "Layer %d", state.layer.index);
-        lv_canvas_draw_text(canvas, 0, 3, BLOCK_SIZE, &label_dsc, text);
+        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, text);
     }
 
     rotate_canvas(canvas, bottom_cbuf);
