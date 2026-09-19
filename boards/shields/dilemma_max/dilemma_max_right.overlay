@@ -72,9 +72,11 @@
         active_syncs_per_x = <0>;
         idle_syncs_per_x = <0>;
         confthr = <5>;                       // Touch-Entprellung
-        // Nahe Finger sollen getrennt gemeldet werden (Autor: 5/10)
-        merge-threshold = <1>;
-        merge-hysteresis = <2>;
+        // Stand vor dem Versuch mit 1/2: der niedrigere Wert hat das Scrollen verschlechtert
+        merge-threshold = <2>;
+        merge-hysteresis = <5>;
+        // Auslaufendes Scrollen nach dem Abheben (aktuell aus)
+        // scroll-momentum;
         shieldless-enable;                   // T56 Rauschunterdrueckung
         retransmission_compensation_disable; // T80 aus
         // Chip misst im aktiven Zustand freilaufend statt alle 10 ms (255 = free run)
