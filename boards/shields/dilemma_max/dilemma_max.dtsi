@@ -95,7 +95,9 @@
         device = <&trackpad_split>;
         // 48.8 Counts/mm auf beiden Achsen (siehe Kconfig.shield); 1:3 = ~16 px pro mm
         // (vor macOS-Beschleunigung). Groessere Zahl hinten = langsamer.
-        input-processors = <&zip_button_behaviors &zip_xy_scaler 1 3>;
+        // Kein zip_button_behaviors: das Ausloesen von Tastenverhalten aus den Ereignissen
+        // eines per Split angebundenen Trackpads liess beide Haelften abstuerzen.
+        input-processors = <&zip_xy_scaler 1 3>;
     };
 };
 
