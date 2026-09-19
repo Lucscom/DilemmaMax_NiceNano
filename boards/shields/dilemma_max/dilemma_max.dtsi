@@ -8,7 +8,6 @@
 
 #include "dilemma_max-layouts.dtsi"
 #include <input/processors.dtsi>
-#include <dt-bindings/zmk/keys.h>
 
 / {
     chosen {
@@ -98,14 +97,6 @@
         // (vor macOS-Beschleunigung). Groessere Zahl hinten = langsamer.
         input-processors = <&zip_button_behaviors &zip_xy_scaler 1 3>;
     };
-};
-
-// Trackpad-Gesten auf macOS-Kuerzel legen. Der Treiber sendet dafuer Codes, die ZMK nicht
-// als Maustasten auswertet: BTN_5..BTN_8 fuer Drei-Finger-Wischer, BTN_9/SELECT fuer den
-// Zwei-Finger-Wischer quer. Wischen nach links zeigt in macOS den Schreibtisch rechts daneben.
-&zip_button_behaviors {
-    codes    = <INPUT_BTN_5   INPUT_BTN_6  INPUT_BTN_7 INPUT_BTN_8  INPUT_BTN_9     INPUT_BTN_SELECT>;
-    bindings = <&kp LC(RIGHT) &kp LC(LEFT) &kp LC(UP)  &kp LC(DOWN) &kp LG(LBKT)    &kp LG(RBKT)>;
 };
 
 // WS2812/SK6805 LED-Strip via SPIM3 (MOSI = P1.04)

@@ -7,6 +7,17 @@
 #include <dt-bindings/zmk/pointing.h>
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/rgb.h>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+// Trackpad-Gesten auf macOS-Kuerzel legen. Der Treiber sendet dafuer Codes, die ZMK nicht
+// als Maustasten auswertet: BTN_5..BTN_8 fuer Drei-Finger-Wischer, BTN_9 und SELECT fuer den
+// Zwei-Finger-Wischer quer. Wischen nach links zeigt in macOS den Schreibtisch rechts daneben.
+// (Steht hier und nicht im dtsi: keys.h definiert RC als Rechts-Strg und kollidiert dort
+// mit dem RC der Matrixzuordnung.)
+&zip_button_behaviors {
+    codes    = <INPUT_BTN_5   INPUT_BTN_6  INPUT_BTN_7 INPUT_BTN_8  INPUT_BTN_9  INPUT_BTN_SELECT>;
+    bindings = <&kp LC(RIGHT) &kp LC(LEFT) &kp LC(UP)  &kp LC(DOWN) &kp LG(LBKT) &kp LG(RBKT)>;
+};
 
 / {
     behaviors {
