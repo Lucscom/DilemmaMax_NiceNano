@@ -59,15 +59,16 @@ config DILEMMA_MAX_RGB_SPLIT_FOLLOW
       wenn die Split-Verbindung wegfaellt, und beim Verbinden wieder an.
 
 config DILEMMA_MAX_STATUS_SCREEN
-    bool "Eigenes nice!view-Layout mit dem Akkustand beider Haelften"
+    bool "Eigenes nice!view-Layout: Akku beider Haelften, Verbindung, Layer"
     default y
     depends on SHIELD_NICE_VIEW && ZMK_DISPLAY_STATUS_SCREEN_CUSTOM && !NICE_VIEW_WIDGET_STATUS
     depends on ZMK_SPLIT && ZMK_SPLIT_BLE && ZMK_SPLIT_ROLE_CENTRAL
     select ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING
     select LV_USE_CANVAS
     select LV_USE_IMG
-    select LV_FONT_MONTSERRAT_14
-    select LV_FONT_MONTSERRAT_22
+    select LV_FONT_UNSCII_8
+    select LV_FONT_MONTSERRAT_16
+    select LV_FONT_MONTSERRAT_18
     help
       Ersetzt das Status-Widget des nice_view-Shields durch src/status_screen.c.
       Dafuer muss CONFIG_NICE_VIEW_WIDGET_STATUS=n gesetzt sein, sonst definieren

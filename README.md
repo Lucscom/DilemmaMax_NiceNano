@@ -206,18 +206,24 @@ made twice in this project.
 
 The nice!view on the left half runs a custom status screen
 (`src/status_screen.c`) instead of the widget that ships with the `nice_view`
-shield. For now it shows the battery level of both halves, left on top, right
-below, each as a percentage with a bar. A bolt next to the left block means USB
-is powering the left half; ZMK does not transmit the charging state of the
-peripheral. `--` on the right block means no battery report yet or the right
-half is disconnected (ZMK reports 0 % on disconnect).
+shield. Read upright, top to bottom:
+
+| Area | Shows |
+|---|---|
+| Top | Battery of both halves (`L`, `R`) as a small bar with percentage. A bolt after the left bar means USB is powering the left half. `--` on the right means no report yet or the right half is disconnected (ZMK reports 0 % on disconnect). Below: USB or Bluetooth with the profile number, and the state `KABEL`, `AKTIV`, `SUCHT...` or `PAIRING`. |
+| Middle | The five Bluetooth profiles as in the stock widget: solid circle = connected, dashed = paired, filled = selected. |
+| Bottom | Active layer, taken from `display-name` in the keymap. |
+
+ZMK does not transmit the charging state of the peripheral, so the right bar
+never shows a bolt.
 
 It is switched on in `config/dilemma_max_left.conf` with
 `CONFIG_NICE_VIEW_WIDGET_STATUS=n`, which lets `CONFIG_DILEMMA_MAX_STATUS_SCREEN`
 default to on. That option also turns on
 `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING` so the central collects the
 right half's level. Like the stock widget, each block is drawn upright on a
-68×68 canvas and rotated 90°, because the 160×68 panel stands on its side.
+68×68 canvas and rotated 90°, because the 160×68 panel stands on its side; only
+the top 24 px of the bottom block fit on the panel.
 
 ---
 
