@@ -5,7 +5,7 @@
  * Hochkant von oben nach unten:
  *
  *   oben    Akkustand links und rechts, darunter Verbindung (USB oder Bluetooth)
- *   Mitte   die fuenf Bluetooth-Profile wie beim Original-Widget
+ *   Mitte   gehaltene Modifier und Caps Lock
  *   unten   aktiver Layer
  *
  * Das Display ist nativ 160x68 und steht auf der Tastatur hochkant. Wie beim
@@ -25,14 +25,22 @@
 #include <zmk/events/battery_state_changed.h>
 #include <zmk/events/ble_active_profile_changed.h>
 #include <zmk/events/endpoint_changed.h>
+#include <zmk/events/hid_indicators_changed.h>
+#include <zmk/events/keycode_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
+#include <zmk/hid.h>
+#include <zmk/hid_indicators.h>
 #include <zmk/keymap.h>
 #include <zmk/split/central.h>
 #include <zmk/usb.h>
 
+#include <dt-bindings/zmk/modifiers.h>
+
 #define BLOCK_SIZE 68
-#define PROFILE_COUNT 5
+
+// Bit 1 im HID-LED-Report des Hosts
+#define HID_INDICATOR_CAPS_LOCK BIT(1)
 
 #define COLOR_BG                                                                                   \
     (IS_ENABLED(CONFIG_NICE_VIEW_WIDGET_INVERTED) ? lv_color_black() : lv_color_white())
@@ -52,8 +60,11 @@ struct output_state {
     int active_profile;
     bool active_connected;
     bool active_bonded;
-    bool profiles_connected[PROFILE_COUNT];
-    bool profiles_bonded[PROFILE_COUNT];
+};
+
+struct mods_state {
+    zmk_mod_flags_t mods;
+    bool caps_lock;
 };
 
 struct layer_state {
@@ -66,12 +77,14 @@ static struct {
     struct battery_state left;
     struct battery_state right;
     struct output_state output;
+    struct mods_state mods;
     struct layer_state layer;
 } state;
 
 static lv_obj_t *top_canvas;
 static lv_obj_t *middle_canvas;
 static lv_obj_t *bottom_canvas;
+static bool middle_canvas_drawn;
 static lv_color_t top_cbuf[BLOCK_SIZE * BLOCK_SIZE];
 static lv_color_t middle_cbuf[BLOCK_SIZE * BLOCK_SIZE];
 static lv_color_t bottom_cbuf[BLOCK_SIZE * BLOCK_SIZE];
@@ -111,16 +124,10 @@ static void init_line(lv_draw_line_dsc_t *dsc, uint8_t width) {
     dsc->width = width;
 }
 
-static void init_arc(lv_draw_arc_dsc_t *dsc, uint8_t width) {
-    lv_draw_arc_dsc_init(dsc);
-    dsc->color = COLOR_FG;
-    dsc->width = width;
-}
-
 /*
  * Eine Akku-Zeile, 9 px hoch: Buchstabe, Akku-Symbol, Blitz beim Laden, Prozentwert.
- * level == 0 steht fuer "unbekannt" - ZMK meldet beim Trennen der Peripheral genau
- * diesen Wert.
+ * level == 0 steht fuer "keine Verbindung" - ZMK meldet beim Trennen der Peripheral
+ * genau diesen Wert, und vor dem ersten Bericht steht er ebenfalls auf 0.
  */
 static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
                              struct battery_state battery) {
@@ -139,6 +146,11 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
 
     lv_canvas_draw_text(canvas, 0, y + 1, 8, &name_dsc, name);
 
+    if (level == 0) {
+        lv_canvas_draw_text(canvas, 10, y + 1, BLOCK_SIZE - 10, &name_dsc, "OFFLINE");
+        return;
+    }
+
     // Rahmen 20x9 mit Pol, Fuellung innen maximal 16 px
     lv_canvas_draw_rect(canvas, 9, y, 20, 9, &fg);
     lv_canvas_draw_rect(canvas, 10, y + 1, 18, 7, &bg);
@@ -154,11 +166,7 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
     }
 
     char value[4];
-    if (level > 0) {
-        snprintf(value, sizeof(value), "%u", level);
-    } else {
-        strcpy(value, "--");
-    }
+    snprintf(value, sizeof(value), "%u", level);
     lv_canvas_draw_text(canvas, 40, y + 1, BLOCK_SIZE - 40, &value_dsc, value);
 }
 
@@ -193,93 +201,79 @@ static void draw_top(void) {
     case ZMK_TRANSPORT_USB:
         symbol = LV_SYMBOL_USB;
         strcpy(transport, "USB");
-        status = "KABEL";
+        status = "WIRED";
         break;
     case ZMK_TRANSPORT_BLE:
     default:
-        symbol = LV_SYMBOL_BLUETOOTH;
+        symbol = LV_SYMBOL_WIFI;
         snprintf(transport, sizeof(transport), "BT %d", out->active_profile + 1);
         if (!out->active_bonded) {
             status = "PAIRING";
         } else if (out->active_connected) {
-            status = "AKTIV";
+            status = "ONLINE";
         } else {
-            status = "SUCHT...";
+            status = "WAITING";
         }
         break;
     }
 
-    lv_canvas_draw_text(canvas, 2, 31, 24, &symbol_dsc, symbol);
-    lv_canvas_draw_text(canvas, 20, 32, BLOCK_SIZE - 22, &transport_dsc, transport);
+    lv_canvas_draw_text(canvas, 1, 31, 28, &symbol_dsc, symbol);
+    lv_canvas_draw_text(canvas, 28, 32, BLOCK_SIZE - 30, &transport_dsc, transport);
     lv_canvas_draw_text(canvas, 0, 56, BLOCK_SIZE, &status_dsc, status);
 
     rotate_canvas(canvas, top_cbuf);
 }
 
-// Bluetooth-Profile wie im Original-Widget: Kreis = verbunden, gestrichelt = gekoppelt,
-// gefuellt = aktiv
-static void draw_middle(void) {
-    lv_obj_t *canvas = middle_canvas;
-    const struct output_state *out = &state.output;
-
-    lv_draw_rect_dsc_t bg;
-    init_rect(&bg, COLOR_BG);
-    lv_draw_arc_dsc_t arc_dsc;
-    init_arc(&arc_dsc, 2);
-    lv_draw_arc_dsc_t arc_filled_dsc;
-    init_arc(&arc_filled_dsc, 9);
+/*
+ * Modifier als 2x2-Raster, darunter Caps Lock. Gehalten = invertiertes Kaestchen.
+ * Linke und rechte Variante eines Modifiers werden zusammengefasst; die Namen folgen
+ * macOS (OPT = Alt, CMD = GUI).
+ */
+static void draw_mod(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, lv_coord_t w,
+                     const char *name, bool active) {
+    lv_draw_rect_dsc_t fg;
+    init_rect(&fg, COLOR_FG);
     lv_draw_label_dsc_t label_dsc;
-    init_label(&label_dsc, COLOR_FG, &lv_font_montserrat_18, LV_TEXT_ALIGN_CENTER);
-    lv_draw_label_dsc_t label_inv_dsc;
-    init_label(&label_inv_dsc, COLOR_BG, &lv_font_montserrat_18, LV_TEXT_ALIGN_CENTER);
+    init_label(&label_dsc, active ? COLOR_BG : COLOR_FG, &lv_font_unscii_8,
+               LV_TEXT_ALIGN_CENTER);
 
-    lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
-
-    static const lv_coord_t centers[PROFILE_COUNT][2] = {
-        {13, 13}, {55, 13}, {34, 34}, {13, 55}, {55, 55},
-    };
-    for (int i = 0; i < PROFILE_COUNT; i++) {
-        lv_coord_t x = centers[i][0];
-        lv_coord_t y = centers[i][1];
-        bool selected = i == out->active_profile;
-
-        if (out->profiles_connected[i]) {
-            lv_canvas_draw_arc(canvas, x, y, 13, 0, 360, &arc_dsc);
-        } else if (out->profiles_bonded[i]) {
-            const int segments = 8;
-            const int gap = 20;
-            for (int j = 0; j < segments; j++) {
-                lv_canvas_draw_arc(canvas, x, y, 13, 360 / segments * j + gap / 2,
-                                   360 / segments * (j + 1) - gap / 2, &arc_dsc);
-            }
-        }
-
-        if (selected) {
-            lv_canvas_draw_arc(canvas, x, y, 9, 0, 359, &arc_filled_dsc);
-        }
-
-        char label[2];
-        snprintf(label, sizeof(label), "%d", i + 1);
-        lv_canvas_draw_text(canvas, x - 8, y - 10, 16, selected ? &label_inv_dsc : &label_dsc,
-                            label);
+    if (active) {
+        lv_canvas_draw_rect(canvas, x, y, w, 14, &fg);
     }
-
-    rotate_canvas(canvas, middle_cbuf);
+    lv_canvas_draw_text(canvas, x, y + 3, w, &label_dsc, name);
 }
 
-// Aktiver Layer als invertiertes Band in den sichtbaren 24 px
-static void draw_bottom(void) {
-    lv_obj_t *canvas = bottom_canvas;
+static void draw_middle(void) {
+    lv_obj_t *canvas = middle_canvas;
+    zmk_mod_flags_t mods = state.mods.mods;
 
     lv_draw_rect_dsc_t bg;
     init_rect(&bg, COLOR_BG);
     lv_draw_rect_dsc_t fg;
     init_rect(&fg, COLOR_FG);
-    lv_draw_label_dsc_t label_dsc;
-    init_label(&label_dsc, COLOR_BG, &lv_font_montserrat_16, LV_TEXT_ALIGN_CENTER);
 
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
-    lv_canvas_draw_rect(canvas, 0, 2, BLOCK_SIZE, 21, &fg);
+    lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, 1, &fg);
+
+    draw_mod(canvas, 0, 6, 33, "SHFT", mods & (MOD_LSFT | MOD_RSFT));
+    draw_mod(canvas, 35, 6, 33, "CTRL", mods & (MOD_LCTL | MOD_RCTL));
+    draw_mod(canvas, 0, 24, 33, "OPT", mods & (MOD_LALT | MOD_RALT));
+    draw_mod(canvas, 35, 24, 33, "CMD", mods & (MOD_LGUI | MOD_RGUI));
+    draw_mod(canvas, 0, 46, BLOCK_SIZE, "CAPS", state.mods.caps_lock);
+
+    rotate_canvas(canvas, middle_cbuf);
+}
+
+// Aktiver Layer als Text in den sichtbaren 24 px
+static void draw_bottom(void) {
+    lv_obj_t *canvas = bottom_canvas;
+
+    lv_draw_rect_dsc_t bg;
+    init_rect(&bg, COLOR_BG);
+    lv_draw_label_dsc_t label_dsc;
+    init_label(&label_dsc, COLOR_FG, &lv_font_montserrat_16, LV_TEXT_ALIGN_CENTER);
+
+    lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
 
     if (state.layer.name != NULL && strlen(state.layer.name) > 0) {
         lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, state.layer.name);
@@ -343,12 +337,11 @@ ZMK_DISPLAY_WIDGET_LISTENER(right_battery, struct battery_state, right_battery_u
                             right_battery_get_state)
 ZMK_SUBSCRIPTION(right_battery, zmk_peripheral_battery_state_changed);
 
-// Verbindung: gewaehlter Ausgang und Zustand der Bluetooth-Profile
+// Verbindung: gewaehlter Ausgang und Zustand des aktiven Bluetooth-Profils
 
 static void output_update_cb(struct output_state output) {
     state.output = output;
     draw_top();
-    draw_middle();
 }
 
 static struct output_state output_get_state(const zmk_event_t *eh) {
@@ -358,10 +351,6 @@ static struct output_state output_get_state(const zmk_event_t *eh) {
         .active_connected = zmk_ble_active_profile_is_connected(),
         .active_bonded = !zmk_ble_active_profile_is_open(),
     };
-    for (int i = 0; i < MIN(PROFILE_COUNT, ZMK_BLE_PROFILE_COUNT); i++) {
-        output.profiles_connected[i] = zmk_ble_profile_is_connected(i);
-        output.profiles_bonded[i] = !zmk_ble_profile_is_open(i);
-    }
     return output;
 }
 
@@ -372,6 +361,34 @@ ZMK_SUBSCRIPTION(output_status, zmk_ble_active_profile_changed);
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
 ZMK_SUBSCRIPTION(output_status, zmk_usb_conn_state_changed);
 #endif
+
+/*
+ * Modifier und Caps Lock. ZMK v0.3 loest zmk_modifiers_state_changed nie aus, deshalb
+ * haengt der Listener an jedem Keycode-Event. Die Modifier werden erst im Callback auf
+ * der Display-Workqueue gelesen: die laeuft nach dem Event, wenn der HID-Listener sie
+ * sicher schon uebernommen hat. Unveraenderte Modifier loesen kein Neuzeichnen aus.
+ */
+
+static void mods_update_cb(struct mods_state mods) {
+    mods.mods = zmk_hid_get_explicit_mods();
+    if (mods.mods == state.mods.mods && mods.caps_lock == state.mods.caps_lock &&
+        middle_canvas_drawn) {
+        return;
+    }
+    state.mods = mods;
+    middle_canvas_drawn = true;
+    draw_middle();
+}
+
+static struct mods_state mods_get_state(const zmk_event_t *eh) {
+    return (struct mods_state){
+        .caps_lock = zmk_hid_indicators_get_current_profile() & HID_INDICATOR_CAPS_LOCK,
+    };
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(mods_status, struct mods_state, mods_update_cb, mods_get_state)
+ZMK_SUBSCRIPTION(mods_status, zmk_keycode_state_changed);
+ZMK_SUBSCRIPTION(mods_status, zmk_hid_indicators_changed);
 
 // Layer: hoechster aktiver Layer mit seinem display-name aus der Keymap
 
@@ -413,6 +430,7 @@ lv_obj_t *zmk_display_status_screen() {
     left_battery_init();
     right_battery_init();
     output_status_init();
+    mods_status_init();
     layer_status_init();
 
     return screen;
