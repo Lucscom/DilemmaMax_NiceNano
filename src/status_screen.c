@@ -248,8 +248,8 @@ static void draw_middle(void) {
 
     // Trennlinien oben zur Verbindung und unten zum Layer
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
-    lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, 1, &fg);
-    lv_canvas_draw_rect(canvas, 0, BLOCK_SIZE - 2, BLOCK_SIZE, 1, &fg);
+    lv_canvas_draw_rect(canvas, 0, 8, BLOCK_SIZE, 1, &fg);
+    lv_canvas_draw_rect(canvas, 0, 59, BLOCK_SIZE, 1, &fg);
 
     draw_mod(canvas, 0, 16, 33, "SHFT", mods & (MOD_LSFT | MOD_RSFT));
     draw_mod(canvas, 35, 16, 33, "CTRL", mods & (MOD_LCTL | MOD_RCTL));
