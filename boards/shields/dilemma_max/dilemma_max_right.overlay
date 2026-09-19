@@ -57,35 +57,20 @@
         y-lines = <12>;              // ... und Y0-Y11 (Chip-Maximum 14x24)
         x-pitch = <38>;              // 3.8 mm Raster
         y-pitch = <38>;
-        // Hysterese niedrig, aber OHNE MOVSMOOTH (die Glaettung war die Verschlechterung).
-        // Mit 10/8 sammelt der Chip Rauschen bis zur Schwelle und meldet dann 9-11 Counts
-        // auf einmal - im Log bei ruhendem Finger und bei langsamer Bewegung sichtbar.
-        move-hysteresis-initial = <3>;
-        move-hysteresis-next = <2>;
-        // Chip misst im aktiven Zustand freilaufend statt alle 10 ms (255 = free run, wie im
-        // QMK-Treiber des Autors). Gleichmaessigere Meldungen, etwas hoeherer Verbrauch
-        // solange ein Finger aufliegt.
-        active-acq-time-ms = <255>;
-        confthr = <5>;               // Touch-Entprellung
-        shieldless-enable;           // T56 Rauschunterdrueckung
-        retransmission_compensation_disable; // T80 aus
-        // Diagnose: T37-Rohdaten ins Log (Referenzen einmal, Deltas alle 3s)
-        // diag-dump;
-        // swap-xy war falsch: Finger links-rechts bewegte den Cursor oben-unten
-        // swap-xy;
-        // Empfindlichkeit fuer die 2 mm PLA-Abdeckung (Autor nutzt gain 10 / thr 20 bei
-        // duennerer Abdeckung). Bei Ghost-Touches zuerst touch_threshold erhoehen, dann gain.
-        // Duenne Platte: Fingersignal 100-130 Counts bei Rauschen 2-3 (T37-Messung).
-        // ACHTUNG: touch_threshold 20 = gar keine Erkennung mehr (wie 18 bei der 2-mm-Platte).
-        // Die Schwelle dieses Chips skaliert nicht mit den T37-Counts; 8 ist der belegte Wert.
-        gain = <8>;
-        touch_threshold = <8>;
-        touch_hysteresis = <3>;
-        internal_touch_threshold = <4>;
-        internal_touch_hysteresis = <2>;
-        // Nur Mutual-Capacitance-Messung (Binding: "1 will always work"); mit 3 koennte
-        // die Erkennung auf unkonfigurierten Self-Cap-Daten (T109/T111 leer) laufen.
-        allowed_measurement_types = <1>;
+        // Kompletter Satz aus dem QMK-Treiber des Autors fuer das Procyon 42x50
+        // (drivers/sensors/procyon.h + maxtouch.c). Wichtig: diese Werte gehoeren zusammen --
+        // Schwelle 20 funktioniert nur mit charge_time 1, gain 10 und beiden Messverfahren.
+        move-hysteresis-initial = <10>;
+        move-hysteresis-next = <16>;
+        gain = <10>;
+        touch_threshold = <20>;
+        touch_hysteresis = <10>;
+        internal_touch_threshold = <10>;
+        internal_touch_hysteresis = <5>;
+        charge_time = <1>;
+        allowed_measurement_types = <3>;
+        active_syncs_per_x = <0>;
+        idle_syncs_per_x = <0>;
     };
 };
 
