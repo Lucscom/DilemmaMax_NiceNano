@@ -211,8 +211,8 @@ shield. Read upright, top to bottom:
 | Area | Shows |
 |---|---|
 | Top | Battery of both halves (`L`, `R`) as a small bar with percentage. A bolt after the left bar means USB is powering the left half. `OFFLINE` replaces the right bar while the right half is not connected (ZMK reports 0 % on disconnect and before the first report). Below: USB or a Wi-Fi style symbol for Bluetooth with the profile number, and the state `WIRED`, `ONLINE`, `WAITING` (paired host not connected) or `PAIRING` (profile is empty). |
-| Middle | Held modifiers `SHFT`, `CTRL`, `OPT`, `CMD` (left and right combined) and `CAPS` for the host's Caps Lock, each inverted while active. |
-| Bottom | Active layer, taken from `display-name` in the keymap. |
+| Middle | Held modifiers `SHFT`, `CTRL`, `OPT`, `CMD` (left and right combined), each inverted while held. |
+| Bottom | Active layer in a frame, taken from `display-name` in the keymap. |
 
 ZMK v0.3 does not transmit the charging state of the peripheral, so the right
 bar never shows a bolt. ZMK also never raises `zmk_modifiers_state_changed`,
@@ -223,7 +223,7 @@ It is switched on in `config/dilemma_max_left.conf` with
 `CONFIG_NICE_VIEW_WIDGET_STATUS=n`, which lets `CONFIG_DILEMMA_MAX_STATUS_SCREEN`
 default to on. That option also turns on
 `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING` so the central collects the
-right half's level, and `CONFIG_ZMK_HID_INDICATORS` for Caps Lock. Like the stock widget, each block is drawn upright on a
+right half's level. Like the stock widget, each block is drawn upright on a
 68×68 canvas and rotated 90°, because the 160×68 panel stands on its side; only
 the top 24 px of the bottom block fit on the panel.
 

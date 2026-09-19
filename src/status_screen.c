@@ -5,7 +5,7 @@
  * Hochkant von oben nach unten:
  *
  *   oben    Akkustand links und rechts, darunter Verbindung (USB oder Bluetooth)
- *   Mitte   gehaltene Modifier und Caps Lock
+ *   Mitte   gehaltene Modifier
  *   unten   aktiver Layer
  *
  * Das Display ist nativ 160x68 und steht auf der Tastatur hochkant. Wie beim
@@ -25,12 +25,10 @@
 #include <zmk/events/battery_state_changed.h>
 #include <zmk/events/ble_active_profile_changed.h>
 #include <zmk/events/endpoint_changed.h>
-#include <zmk/events/hid_indicators_changed.h>
 #include <zmk/events/keycode_state_changed.h>
 #include <zmk/events/layer_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/hid.h>
-#include <zmk/hid_indicators.h>
 #include <zmk/keymap.h>
 #include <zmk/split/central.h>
 #include <zmk/usb.h>
@@ -38,9 +36,6 @@
 #include <dt-bindings/zmk/modifiers.h>
 
 #define BLOCK_SIZE 68
-
-// Bit 1 im HID-LED-Report des Hosts
-#define HID_INDICATOR_CAPS_LOCK BIT(1)
 
 #define COLOR_BG                                                                                   \
     (IS_ENABLED(CONFIG_NICE_VIEW_WIDGET_INVERTED) ? lv_color_black() : lv_color_white())
@@ -64,7 +59,6 @@ struct output_state {
 
 struct mods_state {
     zmk_mod_flags_t mods;
-    bool caps_lock;
 };
 
 struct layer_state {
@@ -225,7 +219,7 @@ static void draw_top(void) {
 }
 
 /*
- * Modifier als 2x2-Raster, darunter Caps Lock. Gehalten = invertiertes Kaestchen.
+ * Modifier als 2x2-Raster. Gehalten = invertiertes Kaestchen.
  * Linke und rechte Variante eines Modifiers werden zusammengefasst; die Namen folgen
  * macOS (OPT = Alt, CMD = GUI).
  */
@@ -252,35 +246,40 @@ static void draw_middle(void) {
     lv_draw_rect_dsc_t fg;
     init_rect(&fg, COLOR_FG);
 
+    // Trennlinien oben zur Verbindung und unten zum Layer
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, 1, &fg);
+    lv_canvas_draw_rect(canvas, 0, BLOCK_SIZE - 2, BLOCK_SIZE, 1, &fg);
 
-    draw_mod(canvas, 0, 6, 33, "SHFT", mods & (MOD_LSFT | MOD_RSFT));
-    draw_mod(canvas, 35, 6, 33, "CTRL", mods & (MOD_LCTL | MOD_RCTL));
-    draw_mod(canvas, 0, 24, 33, "OPT", mods & (MOD_LALT | MOD_RALT));
-    draw_mod(canvas, 35, 24, 33, "CMD", mods & (MOD_LGUI | MOD_RGUI));
-    draw_mod(canvas, 0, 46, BLOCK_SIZE, "CAPS", state.mods.caps_lock);
+    draw_mod(canvas, 0, 16, 33, "SHFT", mods & (MOD_LSFT | MOD_RSFT));
+    draw_mod(canvas, 35, 16, 33, "CTRL", mods & (MOD_LCTL | MOD_RCTL));
+    draw_mod(canvas, 0, 38, 33, "OPT", mods & (MOD_LALT | MOD_RALT));
+    draw_mod(canvas, 35, 38, 33, "CMD", mods & (MOD_LGUI | MOD_RGUI));
 
     rotate_canvas(canvas, middle_cbuf);
 }
 
-// Aktiver Layer als Text in den sichtbaren 24 px
+// Aktiver Layer als Text mit Rahmen in den sichtbaren 24 px
 static void draw_bottom(void) {
     lv_obj_t *canvas = bottom_canvas;
 
     lv_draw_rect_dsc_t bg;
     init_rect(&bg, COLOR_BG);
+    lv_draw_rect_dsc_t fg;
+    init_rect(&fg, COLOR_FG);
     lv_draw_label_dsc_t label_dsc;
     init_label(&label_dsc, COLOR_FG, &lv_font_montserrat_16, LV_TEXT_ALIGN_CENTER);
 
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
+    lv_canvas_draw_rect(canvas, 2, 2, BLOCK_SIZE - 4, 20, &fg);
+    lv_canvas_draw_rect(canvas, 3, 3, BLOCK_SIZE - 6, 18, &bg);
 
     if (state.layer.name != NULL && strlen(state.layer.name) > 0) {
-        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, state.layer.name);
+        lv_canvas_draw_text(canvas, 0, 3, BLOCK_SIZE, &label_dsc, state.layer.name);
     } else {
         char text[12];
         snprintf(text, sizeof(text), "Layer %d", state.layer.index);
-        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, text);
+        lv_canvas_draw_text(canvas, 0, 3, BLOCK_SIZE, &label_dsc, text);
     }
 
     rotate_canvas(canvas, bottom_cbuf);
@@ -363,7 +362,7 @@ ZMK_SUBSCRIPTION(output_status, zmk_usb_conn_state_changed);
 #endif
 
 /*
- * Modifier und Caps Lock. ZMK v0.3 loest zmk_modifiers_state_changed nie aus, deshalb
+ * Modifier. ZMK v0.3 loest zmk_modifiers_state_changed nie aus, deshalb
  * haengt der Listener an jedem Keycode-Event. Die Modifier werden erst im Callback auf
  * der Display-Workqueue gelesen: die laeuft nach dem Event, wenn der HID-Listener sie
  * sicher schon uebernommen hat. Unveraenderte Modifier loesen kein Neuzeichnen aus.
@@ -371,8 +370,7 @@ ZMK_SUBSCRIPTION(output_status, zmk_usb_conn_state_changed);
 
 static void mods_update_cb(struct mods_state mods) {
     mods.mods = zmk_hid_get_explicit_mods();
-    if (mods.mods == state.mods.mods && mods.caps_lock == state.mods.caps_lock &&
-        middle_canvas_drawn) {
+    if (mods.mods == state.mods.mods && middle_canvas_drawn) {
         return;
     }
     state.mods = mods;
@@ -380,15 +378,10 @@ static void mods_update_cb(struct mods_state mods) {
     draw_middle();
 }
 
-static struct mods_state mods_get_state(const zmk_event_t *eh) {
-    return (struct mods_state){
-        .caps_lock = zmk_hid_indicators_get_current_profile() & HID_INDICATOR_CAPS_LOCK,
-    };
-}
+static struct mods_state mods_get_state(const zmk_event_t *eh) { return (struct mods_state){}; }
 
 ZMK_DISPLAY_WIDGET_LISTENER(mods_status, struct mods_state, mods_update_cb, mods_get_state)
 ZMK_SUBSCRIPTION(mods_status, zmk_keycode_state_changed);
-ZMK_SUBSCRIPTION(mods_status, zmk_hid_indicators_changed);
 
 // Layer: hoechster aktiver Layer mit seinem display-name aus der Keymap
 
