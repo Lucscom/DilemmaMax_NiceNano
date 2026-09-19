@@ -23,6 +23,7 @@
         compatible = "zmk,keymap";
 
         default_layer {
+            display-name = "BASIS";
             // Deutsches QWERTZ-Layout (OS auf Deutsch eingestellt)
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
             // │ ESC │ 1 │ 2 │ 3 │ 4 │ 5 │   │ 6 │ 7 │ 8 │ 9 │ 0 │ ß/?│
@@ -49,6 +50,7 @@
         };
 
         nav_layer {
+            display-name = "NAV";
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
             // │     │BT0│BT1│BT2│BT3│BT4│   │   │   │   │   │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
