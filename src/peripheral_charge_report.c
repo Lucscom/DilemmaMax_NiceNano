@@ -24,13 +24,6 @@
 
 #include <hal/nrf_power.h>
 
-/*
- * Einer der nRF-Header hinter hal/nrf_power.h definiert APPLICATION als Zahl. Das ist
- * zugleich der Name des Init-Levels von SYS_INIT weiter unten, der Compiler sieht dort
- * sonst eine Zahl statt des Levels ("expected ')' before numeric constant").
- */
-#undef APPLICATION
-
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
@@ -60,6 +53,27 @@ static void report(uint8_t level, bool charging) {
 }
 
 /*
+ * Zwischen zwei Messungen (Default 60 s) merkt sonst niemand, dass das Kabel steckt.
+ *
+ * Die Schleife startet aus dem Listener heraus und nicht per SYS_INIT: hinter
+ * hal/nrf_power.h liegt ein Header, der die Makro-Expansion von SYS_INIT zerlegt
+ * ("expected ')' before numeric constant"). Kostet nichts, denn ZMK misst den Akku
+ * einmal beim Start, das Event kommt also in den ersten Sekunden.
+ */
+static void poll_work_cb(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(poll_work, poll_work_cb);
+
+static void schedule_poll(void) {
+    // Laeuft die Schleife schon, ist das ein No-Op
+    k_work_schedule(&poll_work, K_SECONDS(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_POLL_SEC));
+}
+
+static void poll_work_cb(struct k_work *work) {
+    report(zmk_battery_state_of_charge(), usb_powered());
+    schedule_poll();
+}
+
+/*
  * ZMK setzt den BAS-Wert selbst, bevor es das Event ausloest, und schreibt ihn bei jeder
  * Messung erneut, sobald er von seinem eigenen Stand abweicht. Der Wert geht dann also
  * zweimal raus: einmal roh von ZMK, einmal kodiert von hier.
@@ -68,25 +82,10 @@ static int battery_listener(const zmk_event_t *eh) {
     const struct zmk_battery_state_changed *ev = as_zmk_battery_state_changed(eh);
     if (ev != NULL) {
         report(ev->state_of_charge, usb_powered());
+        schedule_poll();
     }
     return ZMK_EV_EVENT_BUBBLE;
 }
 
 ZMK_LISTENER(dilemma_max_charge_report, battery_listener);
 ZMK_SUBSCRIPTION(dilemma_max_charge_report, zmk_battery_state_changed);
-
-// Zwischen zwei Messungen (Default 60 s) merkt sonst niemand, dass das Kabel steckt
-static void poll_work_cb(struct k_work *work);
-static K_WORK_DELAYABLE_DEFINE(poll_work, poll_work_cb);
-
-static void poll_work_cb(struct k_work *work) {
-    report(zmk_battery_state_of_charge(), usb_powered());
-    k_work_schedule(&poll_work, K_SECONDS(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_POLL_SEC));
-}
-
-static int dilemma_max_charge_report_init(void) {
-    k_work_schedule(&poll_work, K_SECONDS(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_POLL_SEC));
-    return 0;
-}
-
-SYS_INIT(dilemma_max_charge_report_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
