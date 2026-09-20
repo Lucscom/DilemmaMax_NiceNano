@@ -25,4 +25,6 @@ include:
     shield: dilemma_max_right
     # Temporaer: USB-Logging fuer Trackpad-Diagnose (screen /dev/tty.usbmodem* 115200)
     snippet: zmk-usb-logging
-    cmake-args: -DCONFIG_INPUT_LOG_LEVEL_DBG=y -DCONFIG_LOG_PROCESS_THREAD_STARTUP_DELAY_MS=15000
+    # Kein INPUT_LOG_LEVEL_DBG mehr: die Per-Message-Logs sind >500 Zeilen/s und kosten
+    # auf der Peripheral-Seite selbst Rechenzeit. T8/T6-Status und Poll-Heartbeat sind INF.
+    cmake-args: -DCONFIG_LOG_PROCESS_THREAD_STARTUP_DELAY_MS=15000
