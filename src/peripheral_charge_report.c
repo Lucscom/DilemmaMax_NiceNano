@@ -24,6 +24,13 @@
 
 #include <hal/nrf_power.h>
 
+/*
+ * Einer der nRF-Header hinter hal/nrf_power.h definiert APPLICATION als Zahl. Das ist
+ * zugleich der Name des Init-Levels von SYS_INIT weiter unten, der Compiler sieht dort
+ * sonst eine Zahl statt des Levels ("expected ')' before numeric constant").
+ */
+#undef APPLICATION
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
