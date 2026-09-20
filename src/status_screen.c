@@ -112,10 +112,15 @@ static void init_rect(lv_draw_rect_dsc_t *dsc, lv_color_t color) {
     dsc->bg_color = color;
 }
 
-static void init_line(lv_draw_line_dsc_t *dsc, uint8_t width) {
-    lv_draw_line_dsc_init(dsc);
-    dsc->color = COLOR_FG;
-    dsc->width = width;
+/*
+ * Schraege Linien zeichnet LVGL mit Kantenglaettung, und bei einem Bit Farbtiefe faellt
+ * jedes halb gedeckte Pixel auf den Hintergrund zurueck - eine 1 px breite Diagonale ist
+ * damit unsichtbar. Schraeges wird deshalb Pixel fuer Pixel aus Rechtecken gesetzt.
+ */
+static void draw_pixel(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y) {
+    lv_draw_rect_dsc_t fg;
+    init_rect(&fg, COLOR_FG);
+    lv_canvas_draw_rect(canvas, x, y, 1, 1, &fg);
 }
 
 /*
@@ -133,8 +138,6 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
     init_label(&name_dsc, COLOR_FG, &lv_font_unscii_8, LV_TEXT_ALIGN_LEFT);
     lv_draw_label_dsc_t value_dsc;
     init_label(&value_dsc, COLOR_FG, &lv_font_unscii_8, LV_TEXT_ALIGN_RIGHT);
-    lv_draw_line_dsc_t line_dsc;
-    init_line(&line_dsc, 1);
 
     uint8_t level = MIN(battery.level, 100);
 
@@ -142,10 +145,10 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
 
     // Keine Verbindung: kleines Kreuz an der Stelle des Akkus
     if (level == 0) {
-        lv_point_t down[] = {{11, y}, {19, y + 8}};
-        lv_point_t up[] = {{19, y}, {11, y + 8}};
-        lv_canvas_draw_line(canvas, down, ARRAY_SIZE(down), &line_dsc);
-        lv_canvas_draw_line(canvas, up, ARRAY_SIZE(up), &line_dsc);
+        for (int i = 0; i < 9; i++) {
+            draw_pixel(canvas, 11 + i, y + i);
+            draw_pixel(canvas, 19 - i, y + i);
+        }
         return;
     }
 
@@ -158,9 +161,16 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
         lv_canvas_draw_rect(canvas, 11, y + 2, fill, 5, &fg);
     }
 
+    // Blitz beim Laden, 5x9 px aus einzelnen Pixeln
     if (battery.charging) {
-        lv_point_t bolt[] = {{37, y}, {34, y + 4}, {37, y + 4}, {34, y + 8}};
-        lv_canvas_draw_line(canvas, bolt, ARRAY_SIZE(bolt), &line_dsc);
+        static const uint8_t bolt[9] = {0x0c, 0x06, 0x03, 0x1f, 0x18, 0x0c, 0x06, 0x03, 0x00};
+        for (int row = 0; row < 9; row++) {
+            for (int col = 0; col < 5; col++) {
+                if (bolt[row] & BIT(col)) {
+                    draw_pixel(canvas, 33 + col, y + row);
+                }
+            }
+        }
     }
 
     char value[4];

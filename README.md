@@ -215,7 +215,12 @@ shield. Read upright, top to bottom:
 | Bottom | Active layer as an inverted band, taken from `display-name` in the keymap. |
 
 ZMK v0.3 does not transmit the charging state of the peripheral, so the right
-bar never shows a bolt. ZMK also never raises `zmk_modifiers_state_changed`,
+bar never shows a bolt.
+
+Anything diagonal — the cross, the charging bolt — is set pixel by pixel with
+1×1 rectangles. `lv_canvas_draw_line` anti-aliases, and at one bit per pixel
+every partly covered pixel falls back to the background, which makes a 1 px
+diagonal invisible on this panel. ZMK also never raises `zmk_modifiers_state_changed`,
 so the modifier area listens to every keycode event and redraws only when the
 modifiers actually changed.
 
