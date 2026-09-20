@@ -12,7 +12,7 @@ manifest:
       import: app/west.yml
     - name: maxtouch-zephyr-module
       remote: philippkober
-      revision: main
+      revision: qmk-calibration
       path: modules/maxtouch
   self:
     path: config
