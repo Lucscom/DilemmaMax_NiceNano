@@ -50,8 +50,8 @@ chasing that as if it were a software bug.
 ```
 boards/shields/dilemma_max/    shield definition, keymap, overlays
 config/                        west manifest and per-side Kconfig
-src/                           RGB split helpers and the nice!view status screen,
-                               compiled into the ZMK app
+src/                           RGB split helpers, the nice!view status screen and
+                               the charge reporting, compiled into the ZMK app
 Kconfig, CMakeLists.txt        make this repo a Zephyr module for those sources
 build.yaml                     GitHub Actions build matrix
 cirque_test/                   Arduino sketches used to bring the pad up
@@ -214,8 +214,16 @@ shield. Read upright, top to bottom:
 | Middle | Held modifiers `SHFT`, `CTRL`, `OPT`, `CMD` (left and right combined), each inverted while held. |
 | Bottom | Active layer as an inverted band, taken from `display-name` in the keymap. |
 
-ZMK v0.3 does not transmit the charging state of the peripheral, so the right
-bar never shows a bolt.
+ZMK v0.3 has no channel for the charging state of the peripheral: the right
+half only reports its battery level, as a plain BAS value the central
+subscribes to. `src/peripheral_charge_report.c` therefore encodes charging in
+the parity of that value — odd means charging — which costs one percent of
+accuracy and skews the level by at most 1. The right half reads USB power
+straight from the nRF52840 VBUS detection, because `CONFIG_ZMK_USB` is not
+allowed on a peripheral. Both halves have to be flashed together: with an older
+firmware on the right, the central reads every odd level as charging. The
+decoding side is `CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_DECODE`, which can be
+turned off in the meantime.
 
 Anything diagonal — the cross, the charging bolt — is set pixel by pixel with
 1×1 rectangles. `lv_canvas_draw_line` anti-aliases, and at one bit per pixel

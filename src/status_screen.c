@@ -323,8 +323,12 @@ ZMK_SUBSCRIPTION(left_battery, zmk_battery_state_changed);
 ZMK_SUBSCRIPTION(left_battery, zmk_usb_conn_state_changed);
 #endif
 
-// Rechte Haelfte: Wert, den das Central per Split-BLE von der Peripheral abholt.
-// Ob sie laedt, uebertraegt ZMK nicht.
+/*
+ * Rechte Haelfte: Wert, den das Central per Split-BLE von der Peripheral abholt. Einen
+ * Ladezustand kennt ZMK dafuer nicht, deshalb steckt er in der Parittaet des Werts:
+ * ungerade = laedt (siehe src/peripheral_charge_report.c). Das kostet ein Prozent
+ * Genauigkeit. 0 meldet ZMK selbst, sobald die Verbindung abreisst.
+ */
 
 static void right_battery_update_cb(struct battery_state battery) {
     state.right = battery;
@@ -342,7 +346,10 @@ static struct battery_state right_battery_get_state(const zmk_event_t *eh) {
         zmk_split_central_get_peripheral_battery_level(RIGHT_SOURCE, &level);
     }
 
-    return (struct battery_state){.level = level};
+    return (struct battery_state){
+        .level = level,
+        .charging = IS_ENABLED(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_DECODE) && (level & 1),
+    };
 }
 
 ZMK_DISPLAY_WIDGET_LISTENER(right_battery, struct battery_state, right_battery_update_cb,
