@@ -1,5 +1,8 @@
 # Dilemma Max - eigene Build-Optionen
 
+# maXTouch-Trackpadtreiber (frueher eigenes Modul, siehe CMakeLists.txt)
+rsource "drivers/Kconfig"
+
 config DILEMMA_MAX_RGB_SPLIT_SYNC
     bool "Underglow-Zustand vom Central an die Peripherals spiegeln"
     default y
