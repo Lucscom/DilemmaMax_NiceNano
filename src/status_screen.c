@@ -143,11 +143,11 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
 
     lv_canvas_draw_text(canvas, 0, y + 1, 8, &name_dsc, name);
 
-    // Keine Verbindung: kleines Kreuz an der Stelle des Akkus
+    // Keine Verbindung: Kreuz rechts aussen, 10x9 px mit 2 px Strichstaerke
     if (level == 0) {
         for (int i = 0; i < 9; i++) {
-            draw_pixel(canvas, 11 + i, y + i);
-            draw_pixel(canvas, 19 - i, y + i);
+            lv_canvas_draw_rect(canvas, BLOCK_SIZE - 10 + i, y + i, 2, 1, &fg);
+            lv_canvas_draw_rect(canvas, BLOCK_SIZE - 2 - i, y + i, 2, 1, &fg);
         }
         return;
     }
