@@ -140,8 +140,12 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
 
     lv_canvas_draw_text(canvas, 0, y + 1, 8, &name_dsc, name);
 
+    // Keine Verbindung: kleines Kreuz an der Stelle des Akkus
     if (level == 0) {
-        lv_canvas_draw_text(canvas, 10, y + 1, BLOCK_SIZE - 10, &name_dsc, "OFFLINE");
+        lv_point_t down[] = {{11, y}, {19, y + 8}};
+        lv_point_t up[] = {{19, y}, {11, y + 8}};
+        lv_canvas_draw_line(canvas, down, ARRAY_SIZE(down), &line_dsc);
+        lv_canvas_draw_line(canvas, up, ARRAY_SIZE(up), &line_dsc);
         return;
     }
 
