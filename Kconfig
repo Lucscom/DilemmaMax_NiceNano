@@ -77,3 +77,37 @@ config DILEMMA_MAX_STATUS_SCREEN
 
       Den Akkustand der rechten Haelfte holt das Central per Split-BLE ab
       (CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING).
+
+config DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT
+    bool "Ladezustand der Peripheral im Akkustand kodieren"
+    default y
+    depends on ZMK_SPLIT && !ZMK_SPLIT_ROLE_CENTRAL && ZMK_BATTERY_REPORTING && BT_BAS
+    depends on SOC_SERIES_NRF52X
+    help
+      ZMK v0.3 uebertraegt von der Peripheral nur den Akkustand, nicht ob sie laedt.
+      Diese Option steckt den Ladezustand in die Parittaet des gemeldeten Werts:
+      ungerade = laedt. Das kostet ein Prozent Genauigkeit.
+
+      Ob USB Strom liefert, liest src/peripheral_charge_report.c direkt an der
+      VBUS-Erkennung des nRF52840 ab - CONFIG_ZMK_USB ist auf einer Peripheral nicht
+      erlaubt.
+
+      Gegenstueck ist CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_DECODE auf dem Central.
+      Beide Haelften gehoeren zusammen geflasht: ohne diese Option rechts deutet das
+      Central jeden ungeraden Akkustand als "laedt".
+
+config DILEMMA_MAX_PERIPHERAL_CHARGE_POLL_SEC
+    int "Abstand in Sekunden, in dem VBUS geprueft wird"
+    default 10
+    depends on DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT
+    help
+      Zwischen zwei Akku-Messungen (CONFIG_ZMK_BATTERY_REPORT_INTERVAL, Default 60 s)
+      merkt sonst niemand, dass das Kabel gerade gesteckt oder gezogen wurde.
+
+config DILEMMA_MAX_PERIPHERAL_CHARGE_DECODE
+    bool "Ladezustand der Peripheral aus dem Akkustand lesen"
+    default y
+    depends on DILEMMA_MAX_STATUS_SCREEN
+    help
+      Gegenstueck zu CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT auf dem Central.
+      Aus zu lassen, solange rechts eine Firmware ohne die Kodierung laeuft.
