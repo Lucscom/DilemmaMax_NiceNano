@@ -22,8 +22,6 @@ struct mxt_finger {
     uint8_t lift_samples;
     int16_t buf_x, buf_y;
     uint32_t last_ms;   // Zeitpunkt der letzten Messung, Basis fuer die Sprunggrenze
-    int16_t rest_x, rest_y; // Ruhepunkt: Position der letzten nennenswerten Bewegung
-    uint32_t rest_ms;       // ... und ihr Zeitpunkt
     uint8_t jump_skip;  // Sprung erkannt: auch die naechste Messung verwerfen
     int16_t scr_dx, scr_dy; // Weg seit der letzten Auswertung am Zyklusende (Scroll-Paar, Wischen)
 };
@@ -66,7 +64,6 @@ struct mxt_data {
     int16_t two_d0;           // Fingerabstand zu Beginn des Messfensters
     int16_t two_ax, two_ay, two_bx, two_by; // Weg beider Finger im Messfenster
     int16_t pinch_ref;        // Fingerabstand beim letzten Zoom-Schritt
-    bool cursor_resting; // Cursor-Finger liegt still: Drift erreicht den Cursor nicht (Ruhe-Sperre)
     bool cursor_started; // Cursor laeuft erst nach Wartezeit/Mindestweg, Bewegung davor wird verworfen
     // Cursor-Takt: der Chip liefert im Free-Run bis zu 300 Messungen/s, die BLE-Split-Strecke
     // traegt das nicht. Bewegung wird aufsummiert und mit festem Takt abgeschickt.

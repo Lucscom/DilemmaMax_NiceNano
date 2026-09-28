@@ -75,15 +75,6 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 #define MXT_REPORT_INTERVAL_MS 8 // Cursor-Takt: 125 Hz, so viel traegt die BLE-Split-Strecke
 #define MXT_CURSOR_WAIT_MS 150  // Cursor startet nach dieser Zeit ...
 #define MXT_CURSOR_START_MOVE 48 // ... oder nach ~1 mm Weg; Bewegung davor wird verworfen (QMK)
-// Ruhe-Sperre: vor dem Scrollen liegt der erste Finger meist kurz still. Setzt dann der zweite
-// auf, zieht der Chip den Schwerpunkt des ersten schon vorher Richtung neuer Finger (Log:
-// 7..49 Counts verworfen, der Rest davor ging als Cursor-Ruck raus). Hat sich der Finger
-// MXT_REST_MS lang nicht mehr als MXT_REST_MOVE bewegt, bleibt der Cursor stehen, bis er sich
-// mehr als MXT_REST_RESTART_MOVE (~1.2 mm) vom Ruhepunkt entfernt; der Weg bis dahin wird
-// verworfen wie beim Cursor-Start. Langsames Fuehren (ab ~0.6 mm/s) ist nicht betroffen.
-#define MXT_REST_MS 200
-#define MXT_REST_MOVE 6
-#define MXT_REST_RESTART_MOVE 60
 #define MXT_SCROLL_DIV 80       // Counts pro Scroll-Schritt (~1.6 mm Fingerweg, war 2.4 mm)
 #define MXT_SCROLL_START_MOVE 40 // Scroll startet nach ~0.8 mm ...
 #define MXT_SCROLL_START_MS 300  // ... die innerhalb dieser Zeit zusammenkommen muessen
@@ -494,7 +485,6 @@ static void mxt_reset_touches(const struct device *dev) {
     data->scroll_start_dx = data->scroll_start_dy = 0;
     mxt_momentum_stop(data);
     data->cursor_started = false;
-    data->cursor_resting = false;
     data->pend_dx = data->pend_dy = 0;
     data->hold_dx = data->hold_dy = 0;
     k_work_cancel_delayable(&data->click_release_work);
@@ -553,9 +543,6 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
         f->jump_skip = 0;
         f->merged = merged;
         f->down_area = area;
-        f->rest_x = x;
-        f->rest_y = y;
-        f->rest_ms = now;
         mxt_clear_paths(data); // Fingerpaar hat sich geaendert: Weg neu sammeln
         data->two_mode = MXT_TWO_UNDECIDED;
         data->two_ref_valid = false;
@@ -590,7 +577,6 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
             data->gesture_dx = data->gesture_dy = 0;
             data->swipe_fired = false;
             data->cursor_started = false;
-            data->cursor_resting = false;
             if (data->button_held && data->click_button == INPUT_BTN_0) {
                 // Tap-and-Drag: Finger kam zurueck, solange die Taste noch gehalten wird
                 k_work_cancel_delayable(&data->click_release_work);
@@ -658,38 +644,12 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
             if (!data->cursor_started) {
                 // Wie im QMK-Treiber: Bewegung am Anfang verwerfen (nicht sammeln), bis
                 // Wartezeit oder Mindestweg erreicht sind. Kein Sprung beim Start.
-                if (mxt_abs16(x - f->down_x) > MXT_CURSOR_START_MOVE ||
+                if (now - data->gesture_start_ms >= MXT_CURSOR_WAIT_MS ||
+                    mxt_abs16(x - f->down_x) > MXT_CURSOR_START_MOVE ||
                     mxt_abs16(y - f->down_y) > MXT_CURSOR_START_MOVE) {
                     data->cursor_started = true;
-                    f->rest_x = x; // Start durch Bewegung: Ruhepunkt nachziehen
-                    f->rest_y = y;
-                    f->rest_ms = now;
-                } else if (now - data->gesture_start_ms >= MXT_CURSOR_WAIT_MS) {
-                    data->cursor_started = true;
                 }
                 break;
-            }
-            // Ruhe-Sperre (siehe MXT_REST_MS)
-            if (!data->cursor_resting && now - f->rest_ms >= MXT_REST_MS) {
-                data->cursor_resting = true;
-            }
-            if (data->cursor_resting) {
-                if (mxt_abs16(x - f->rest_x) <= MXT_REST_RESTART_MOVE &&
-                    mxt_abs16(y - f->rest_y) <= MXT_REST_RESTART_MOVE) {
-                    break; // Drift eines ruhenden Fingers: nicht zum Cursor
-                }
-                data->cursor_resting = false;
-                LOG_INF("gesture: cursor resumes after rest dx=%d dy=%d", x - f->rest_x,
-                        y - f->rest_y);
-                f->rest_x = x;
-                f->rest_y = y;
-                f->rest_ms = now;
-                break;
-            }
-            if (mxt_abs16(x - f->rest_x) > MXT_REST_MOVE || mxt_abs16(y - f->rest_y) > MXT_REST_MOVE) {
-                f->rest_x = x;
-                f->rest_y = y;
-                f->rest_ms = now;
             }
             // Abhebe-Erkennung: Amplitude deutlich unter dem Mittel -> Bewegung zurueckhalten
             bool fast = (mxt_abs16(dx) + mxt_abs16(dy)) > MXT_FAST_MOVE;
