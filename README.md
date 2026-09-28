@@ -166,7 +166,7 @@ the firmware and sent as mouse events or key shortcuts:
 | Double tap | Double click |
 | Tap, then touch and move | Drag |
 | Two fingers moving in parallel | Scroll, one step per ~1.6 mm, with a short momentum after lift |
-| Two fingers moving apart / together | Zoom in / out, one step per ~4.5 mm (`Cmd+=` / `Cmd+-`) |
+| Two fingers moving apart / together | Zoom in / out, one step per ~3 mm (`Cmd` + keypad `+` / `-`) |
 | Two finger tap | Right click |
 | Two finger flick sideways | Mouse buttons 4/5 — page back/forward in Safari |
 | Three finger swipe left / right | Next / previous space (`Ctrl+→` / `Ctrl+←`) |
@@ -204,13 +204,14 @@ The shortcut for each gesture is set on the `gesture_keys` node at the end of
 | `codes` | Gesture codes to catch (`DM_GESTURE_*`) |
 | `keycodes` | Shortcut per code, same order, ZMK keycodes such as `LC(RIGHT)` |
 
-The zoom shortcuts assume a US layout on the Mac. With a German host layout
-`+` sits on `RBKT` and `-` on `FSLH`; override the node from the keymap of a
-layout branch:
+Zoom uses `Cmd` with the keypad `+` and `-` keys, which produce the same
+characters whatever the host layout is. `Cmd+=` would only work with a US
+layout; on a German one that key is the acute accent. A layout branch can
+still override the node from its keymap:
 
 ```
 &gesture_keys {
-    keycodes = <LC(RIGHT) LC(LEFT) LC(UP) LC(DOWN) LG(RBKT) LG(FSLH)>;
+    keycodes = <LC(RIGHT) LC(LEFT) LC(UP) LC(DOWN) LG(KP_PLUS) LG(KP_MINUS)>;
 };
 ```
 

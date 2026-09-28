@@ -83,10 +83,10 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 #define MXT_SCROLL_PAIR_MIN 10
 #define MXT_SCROLL_PAIR_RATIO 3
 // Zwei Finger: Scrollen oder Pinch wird nach ~0.8 mm Weg einmal pro Beruehrung festgelegt.
-// Pinch braucht mindestens ~1.6 mm Abstandsaenderung; danach je ~4.5 mm ein Zoom-Schritt.
+// Pinch braucht mindestens ~1.6 mm Abstandsaenderung; danach je ~3 mm ein Zoom-Schritt.
 #define MXT_TWO_DECIDE 40
 #define MXT_PINCH_DECIDE 80
-#define MXT_PINCH_STEP 220
+#define MXT_PINCH_STEP 150
 // Abhebe-Erkennung: nur bei deutlichem Amplitudeneinbruch und nur kurz, sonst wird die
 // zurueckgehaltene Bewegung als Sprung nachgeliefert (Log: bis zu 211 Counts am Stueck).
 #define MXT_LIFT_DROP_PCT 80    // Amplitude unter 80 % des Mittels = moegliches Abheben
@@ -326,8 +326,9 @@ static int16_t mxt_finger_dist(const struct mxt_finger *a, const struct mxt_fing
 // Zwei getrennte Finger, einmal pro Messzyklus. Die Geste wird einmal pro Beruehrung
 // festgelegt, damit sie nicht zwischen Scrollen und Zoom kippt:
 //  - Erst den Weg beider Finger sammeln, bis einer MXT_TWO_DECIDE zurueckgelegt hat.
-//  - Hat sich dabei vor allem der Abstand geaendert (mindestens MXT_PINCH_DECIDE, doppelt
-//    so viel wie der Mittelpunkt gewandert ist): Pinch.
+//  - Hat sich dabei vor allem der Abstand geaendert (mindestens MXT_PINCH_DECIDE und mehr
+//    als der Mittelpunkt gewandert ist): Pinch. Bewegt sich nur ein Finger, wandert der
+//    Mittelpunkt halb so weit wie sich der Abstand aendert -- das muss noch Pinch sein.
 //  - Laufen beide parallel: Scrollen. Sonst (Drehen, Rauschen) neu messen.
 // Beim Scrollen wird mit dem Mittel beider Wege gescrollt, aber nur solange beide in
 // aehnliche Richtung laufen. Einzelne Messungen sind nur wenige Counts gross und
@@ -368,7 +369,7 @@ static void mxt_two_fingers(const struct device *dev) {
         int16_t dd = mxt_abs16(dist - data->two_d0);
         int16_t cx = (data->two_ax + data->two_bx) / 2, cy = (data->two_ay + data->two_by) / 2;
         int16_t c = mxt_abs16(cx) + mxt_abs16(cy);
-        if (dd >= MXT_PINCH_DECIDE && dd > 2 * c) {
+        if (dd >= MXT_PINCH_DECIDE && dd > c) {
             data->two_mode = MXT_TWO_PINCH;
             data->pinch_ref = data->two_d0;
             LOG_INF("gesture: pinch start d0=%d d=%d centroid=%d", data->two_d0, dist, c);
