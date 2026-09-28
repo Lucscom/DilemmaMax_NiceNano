@@ -22,6 +22,7 @@ struct mxt_finger {
     uint8_t lift_samples;
     int16_t buf_x, buf_y;
     uint32_t last_ms;   // Zeitpunkt der letzten Messung, Basis fuer die Sprunggrenze
+    uint16_t area_avg16; // gleitendes Mittel der Flaeche x16, Referenz fuer die Annaeherung
     uint8_t jump_skip;  // Sprung erkannt: auch die naechste Messung verwerfen
     int16_t scr_dx, scr_dy; // Weg seit der letzten Auswertung am Zyklusende (Scroll-Paar, Wischen)
 };
@@ -72,6 +73,9 @@ struct mxt_data {
     // verworfen werden, wenn sich nachtraeglich ein zweiter Finger zeigt.
     int16_t hold_dx, hold_dy;
     uint32_t last_report_ms;
+    // Cursor angehalten, weil sich vermutlich ein zweiter Finger naehert (Flaeche springt)
+    bool approach_hold;
+    uint32_t approach_until;
     struct k_work_delayable click_release_work;
     uint16_t click_button;
     bool irq_mode;      // CHG-Interrupt statt Dauer-Polling
