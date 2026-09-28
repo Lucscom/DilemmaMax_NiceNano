@@ -62,6 +62,11 @@ struct mxt_data {
     bool ready;         // Chip konfiguriert, alte Meldungen verworfen: erst dann Gesten auswerten
     bool button_held;   // Taste gedrueckt (Tap-Release ausstehend oder Drag laeuft)
     bool dragging;      // Tap-and-Drag aktiv
+    // Absicherung gegen haengende Finger: die T100-Statusmeldung meldete 0 Touches, waehrend
+    // noch Finger aktiv sind. Geprueft wird erst beim naechsten Status oder nach kurzer
+    // Wartezeit, weil die UP-Meldungen desselben Zyklus erst nach dem Status kommen.
+    bool zero_touch_pending;
+    struct k_work_delayable stale_work;
     struct gpio_callback gpio_cb;
     struct k_work work;
     struct k_work_delayable init_work;

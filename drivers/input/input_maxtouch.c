@@ -93,6 +93,7 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 #define MXT_FLICK_DIST 600       // ~12 mm Mindestweg fuer den Seitenwechsel
 #define MXT_FLICK_MAX_MS 400
 #define MXT_CLICK_RELEASE_MS 200 // Taste nach Tap so lange halten: neuer Finger in dieser Zeit = Drag
+#define MXT_STALE_CHECK_MS 50    // 0 Touches gemeldet: so lange auf die UP-Meldungen warten
 
 // Momentum: nach dem Abheben laeuft das Scrollen mit abnehmender Geschwindigkeit aus
 #define MXT_MOMENTUM_TICK_MS 25
@@ -217,6 +218,55 @@ static void mxt_drop_cursor(const struct device *dev) {
     }
     data->pend_dx = data->pend_dy = 0;
     data->hold_dx = data->hold_dy = 0;
+}
+
+// Der Chip meldet keine Touches mehr, aber Finger sind noch aktiv: ein UP ist verloren
+// gegangen. Ohne Reset bliebe das Bit in active_mask stehen, und jede folgende Beruehrung
+// zaehlte einen Finger zu viel (Tap = Rechtsklick, Cursor = Scrollen). Alles zuruecksetzen,
+// aber keine Klick- oder Tap-Auswertung ausloesen.
+static void mxt_reset_touches(const struct device *dev) {
+    struct mxt_data *data = dev->data;
+    LOG_WRN("gesture: stale fingers 0x%02x reset (chip reports 0 touches)", data->active_mask);
+    for (int i = 0; i < MXT_MAX_FINGERS; i++) {
+        struct mxt_finger *f = &data->fingers[i];
+        f->active = false;
+        f->down_area = 0;
+        f->lift_buffering = false;
+        f->buf_x = f->buf_y = 0;
+    }
+    data->active_mask = 0;
+    data->gesture_max_fingers = 0;
+    data->gesture_moved = false;
+    data->gesture_dx = data->gesture_dy = 0;
+    data->swipe_fired = false;
+    data->skip_delta = false;
+    data->scroll_started = false;
+    data->scroll_acc_x = data->scroll_acc_y = 0;
+    data->scroll_start_dx = data->scroll_start_dy = 0;
+    mxt_momentum_stop(data);
+    data->cursor_started = false;
+    data->pend_dx = data->pend_dy = 0;
+    data->hold_dx = data->hold_dy = 0;
+    k_work_cancel_delayable(&data->click_release_work);
+    mxt_button_release(data);
+}
+
+static void mxt_check_stale(const struct device *dev) {
+    struct mxt_data *data = dev->data;
+    if (!data->zero_touch_pending) {
+        return;
+    }
+    data->zero_touch_pending = false;
+    k_work_cancel_delayable(&data->stale_work);
+    if (data->active_mask != 0) {
+        mxt_reset_touches(dev);
+    }
+}
+
+static void mxt_stale_work_cb(struct k_work *work) {
+    struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+    struct mxt_data *data = CONTAINER_OF(dwork, struct mxt_data, stale_work);
+    mxt_check_stale(data->dev);
 }
 
 static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_touch_event ev,
@@ -583,6 +633,15 @@ static void mxt_report_data(const struct device *dev) {
                 break;
             }
             (void)pending_for_finger;
+        } else if (msg.report_id == data->t100_first_report_id) {
+            // T100-Status (scraux Bit 0): data[1] = Zahl der gemeldeten Touches. Er kommt vor
+            // den Finger-Meldungen seines Zyklus, ein offener Verdacht aus dem vorigen Zyklus
+            // ist hier also entschieden.
+            mxt_check_stale(dev);
+            if (data->ready && msg.data[1] == 0 && data->active_mask != 0) {
+                data->zero_touch_pending = true;
+                k_work_schedule(&data->stale_work, K_MSEC(MXT_STALE_CHECK_MS));
+            }
         } else if (msg.report_id == data->t6_command_processor_report_id) {
             // T6-Status wie im QMK-Treiber dekodieren: zeigt, wann der Chip von sich aus
             // kalibriert (CAL) und ob Signalfehler/Overflow auftreten.
@@ -1197,6 +1256,7 @@ static int mxt_init(const struct device *dev) {
 
     k_work_init_delayable(&data->momentum_work, mxt_momentum_work_cb);
     k_work_init_delayable(&data->click_release_work, mxt_click_release_cb);
+    k_work_init_delayable(&data->stale_work, mxt_stale_work_cb);
     k_work_init_delayable(&data->recal_work, mxt_recal_work_cb);
     k_work_init_delayable(&data->diag_work, mxt_diag_work_cb);
     k_work_init_delayable(&data->init_work, mxt_init_work_cb);
