@@ -23,7 +23,7 @@ struct mxt_finger {
     int16_t buf_x, buf_y;
     uint32_t last_ms;   // Zeitpunkt der letzten Messung, Basis fuer die Sprunggrenze
     uint8_t jump_skip;  // Sprung erkannt: auch die naechste Messung verwerfen
-    int16_t scr_dx, scr_dy; // Weg seit der letzten Zwei-Finger-Scroll-Auswertung
+    int16_t scr_dx, scr_dy; // Weg seit der letzten Auswertung am Zyklusende (Scroll-Paar, Wischen)
 };
 
 struct mxt_data {
@@ -46,9 +46,11 @@ struct mxt_data {
     uint32_t scroll_last_ms;
     struct k_work_delayable momentum_work;
     bool momentum_active;
-    int16_t gesture_dx, gesture_dy; // Gesamtweg des fuehrenden Fingers (fuer Wischgesten)
+    int16_t gesture_dx, gesture_dy; // Weg der Geste (Zwei-Finger-Flick, Drei-Finger-Wischen)
     bool skip_delta;   // naechste Messung verwerfen (Position springt beim Fingerwechsel)
     bool swipe_fired;  // Wischgeste in dieser Beruehrung bereits ausgeloest
+    uint32_t swipe_start_ms; // Beginn des Zeitfensters fuers Drei-Finger-Wischen
+    int16_t swipe_rem_x, swipe_rem_y; // Divisionsrest beim Mitteln der Fingerwege
     bool cursor_started; // Cursor laeuft erst nach Wartezeit/Mindestweg, Bewegung davor wird verworfen
     // Cursor-Takt: der Chip liefert im Free-Run bis zu 300 Messungen/s, die BLE-Split-Strecke
     // traegt das nicht. Bewegung wird aufsummiert und mit festem Takt abgeschickt.

@@ -8,6 +8,10 @@
 # da praktisch der ganze Treiber ohnehin hier entstanden ist und upstream nichts liefert,
 # was wir nicht haben, liegt er jetzt direkt im Config-Repo. Er geht als Zephyr-Treiber
 # (zephyr_library_amend) in die Input-Bibliothek, nicht an das ZMK-Target "app".
+# include/dt-bindings/dilemma_max/gestures.h: Gesten-Codes, die Treiber (rechts) und
+# Input-Processor (links) teilen. Fuer den Devicetree ist include/ ueber dts_root bekannt.
+zephyr_include_directories(include)
+
 add_subdirectory(drivers)
 
 target_sources_ifdef(CONFIG_DILEMMA_MAX_RGB_SPLIT_SYNC app PRIVATE src/rgb_split_sync.c)

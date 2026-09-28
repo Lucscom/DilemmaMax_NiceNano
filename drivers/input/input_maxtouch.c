@@ -10,6 +10,7 @@
 #include <zephyr/logging/log.h>
 
 #include "input_maxtouch.h"
+#include <dt-bindings/dilemma_max/gestures.h>
 
 LOG_MODULE_REGISTER(maxtouch, CONFIG_INPUT_LOG_LEVEL);
 
@@ -86,9 +87,11 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 #define MXT_LIFT_DROP_PCT 80    // Amplitude unter 80 % des Mittels = moegliches Abheben
 #define MXT_LIFT_AREA_PCT 75    // ... oder Flaeche unter 75 % der Flaeche beim Aufsetzen
 #define MXT_LIFT_MAX_SAMPLES 5  // danach normal weiterbewegen (max. ~5 Messungen Verzug)
-// Wischgesten. Nur echte Maustasten (BTN_0..BTN_4) verwenden: Tastenverhalten ueber
-// zip_button_behaviors auszuloesen liess bei einem per Split angebundenen Trackpad beide
-// Haelften abstuerzen.
+// Drei-Finger-Wischen: der Mittelpunkt muss ~6 mm in eine klare Richtung (Nebenachse unter
+// 1/3) innerhalb von MXT_SWIPE_MAX_MS zuruecklegen. Gemeldet wird ein eigener Gesten-Code
+// (dt-bindings/dilemma_max/gestures.h), die linke Haelfte macht daraus ein Tastenkuerzel.
+// Keine Tastenverhalten ueber zip_button_behaviors: das liess bei einem per Split
+// angebundenen Trackpad beide Haelften abstuerzen.
 #define MXT_SWIPE_DIST 300       // ~6 mm Mindestweg
 #define MXT_SWIPE_MAX_MS 700
 // Zwei-Finger-Wischer quer = Maustaste 4/5 (Safari: Seite zurueck/vor)
@@ -267,7 +270,14 @@ static void mxt_scroll_step(const struct device *dev, int16_t dx, int16_t dy, ui
     mxt_emit_scroll(dev, dx, dy);
 }
 
-static void mxt_clear_scroll_pair(struct mxt_data *data) {
+// Gesten-Code melden: Druecken + Loslassen, die linke Haelfte loest das Kuerzel aus
+static void mxt_gesture(const struct device *dev, uint16_t code) {
+    LOG_INF("gesture: code 0x%x", code);
+    input_report_key(dev, code, 1, true, K_NO_WAIT);
+    input_report_key(dev, code, 0, true, K_NO_WAIT);
+}
+
+static void mxt_clear_paths(struct mxt_data *data) {
     for (int i = 0; i < MXT_MAX_FINGERS; i++) {
         data->fingers[i].scr_dx = data->fingers[i].scr_dy = 0;
     }
@@ -299,7 +309,55 @@ static void mxt_scroll_pair(const struct device *dev) {
         mxt_scroll_step(dev, (a->scr_dx + b->scr_dx) / 2, (a->scr_dy + b->scr_dy) / 2,
                         k_uptime_get_32());
     }
-    mxt_clear_scroll_pair(data);
+    mxt_clear_paths(data);
+}
+
+// Drei Finger, einmal pro Messzyklus: Weg des Mittelpunkts sammeln (Mittel der Fingerwege,
+// liegende Finger zaehlen mit 0) und bei klarer Richtung einmal pro Beruehrung wischen.
+// Das Zeitfenster startet neu, sobald es ablaeuft: langsames Schieben loest nichts aus,
+// ein Wisch nach kurzem Ruhen aber schon.
+static void mxt_swipe3(const struct device *dev) {
+    struct mxt_data *data = dev->data;
+    uint8_t n = __builtin_popcount(data->active_mask);
+    if (!data->ready || data->dragging || data->gesture_max_fingers < 3 || n == 0) {
+        return;
+    }
+    int32_t sx = data->swipe_rem_x, sy = data->swipe_rem_y;
+    for (int i = 0; i < MXT_MAX_FINGERS; i++) {
+        if (data->active_mask & BIT(i)) {
+            sx += data->fingers[i].scr_dx;
+            sy += data->fingers[i].scr_dy;
+        }
+    }
+    mxt_clear_paths(data);
+    // Rest der Division mitnehmen, sonst gehen langsame Bewegungen in der Rundung verloren
+    int16_t mx = sx / n, my = sy / n;
+    data->swipe_rem_x = sx - mx * n;
+    data->swipe_rem_y = sy - my * n;
+    if (data->swipe_fired) {
+        return;
+    }
+    uint32_t now = k_uptime_get_32();
+    if (now - data->swipe_start_ms > MXT_SWIPE_MAX_MS) {
+        data->swipe_start_ms = now;
+        data->gesture_dx = data->gesture_dy = 0;
+    }
+    data->gesture_dx += mx;
+    data->gesture_dy += my;
+    int16_t ax = mxt_abs16(data->gesture_dx), ay = mxt_abs16(data->gesture_dy);
+    uint16_t code;
+    if (ax >= MXT_SWIPE_DIST && ay * 3 < ax) {
+        code = data->gesture_dx < 0 ? DM_GESTURE_SWIPE3_LEFT : DM_GESTURE_SWIPE3_RIGHT;
+    } else if (ay >= MXT_SWIPE_DIST && ax * 3 < ay) {
+        // y waechst zum Nutzer hin (wie beim Cursor): negativ = nach oben
+        code = data->gesture_dy < 0 ? DM_GESTURE_SWIPE3_UP : DM_GESTURE_SWIPE3_DOWN;
+    } else {
+        return;
+    }
+    data->swipe_fired = true;
+    LOG_INF("gesture: 3-finger swipe dx=%d dy=%d in %u ms", data->gesture_dx, data->gesture_dy,
+            now - data->swipe_start_ms);
+    mxt_gesture(dev, code);
 }
 
 // Der Chip meldet keine Touches mehr, aber Finger sind noch aktiv: ein UP ist verloren
@@ -317,10 +375,11 @@ static void mxt_reset_touches(const struct device *dev) {
         f->buf_x = f->buf_y = 0;
     }
     data->active_mask = 0;
-    mxt_clear_scroll_pair(data);
+    mxt_clear_paths(data);
     data->gesture_max_fingers = 0;
     data->gesture_moved = false;
     data->gesture_dx = data->gesture_dy = 0;
+    data->swipe_rem_x = data->swipe_rem_y = 0;
     data->swipe_fired = false;
     data->skip_delta = false;
     data->scroll_started = false;
@@ -386,7 +445,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
         f->jump_skip = 0;
         f->merged = merged;
         f->down_area = area;
-        mxt_clear_scroll_pair(data); // Fingerpaar hat sich geaendert: Weg neu sammeln
+        mxt_clear_paths(data); // Fingerpaar hat sich geaendert: Weg neu sammeln
         data->skip_delta = true; // Position des fuehrenden Fingers springt beim Aufsetzen
         if (!first) {
             mxt_drop_cursor(dev); // zweiter Finger: den Anlauf-Ruck nicht abschicken
@@ -434,6 +493,12 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
             n = 1;
         }
         if (n > data->gesture_max_fingers) {
+            if (n >= 3 && data->gesture_max_fingers < 3) {
+                // Ab hier Drei-Finger-Geste: den Wischweg erst ab jetzt messen
+                data->swipe_start_ms = now;
+                data->gesture_dx = data->gesture_dy = 0;
+                data->swipe_rem_x = data->swipe_rem_y = 0;
+            }
             data->gesture_max_fingers = n;
         }
         break;
@@ -523,10 +588,10 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
             data->pend_dx += dx;
             data->pend_dy += dy;
             mxt_flush_cursor(dev, false);
-        } else if (idx == lowest && data->gesture_max_fingers >= 3) {
-            // Drei Finger: nur den Weg sammeln, Auswertung als Wischgeste beim Abheben
-            data->gesture_dx += dx;
-            data->gesture_dy += dy;
+        } else if (data->gesture_max_fingers >= 3) {
+            // Drei Finger: Weg pro Finger sammeln, Auswertung am Zyklusende (mxt_swipe3)
+            f->scr_dx += dx;
+            f->scr_dy += dy;
         } else if (data->gesture_max_fingers <= 2 && n >= 2) {
             // Zwei getrennte Finger: Weg pro Finger sammeln. Ausgewertet wird einmal pro
             // Messzyklus am Ende von mxt_report_data(), erst dann liegen beide Deltas vor.
@@ -546,7 +611,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
         f->active = false;
         f->down_area = 0; // Referenz gilt nur fuer diese Beruehrung
         data->active_mask &= ~BIT(idx);
-        mxt_clear_scroll_pair(data);
+        mxt_clear_paths(data);
         data->skip_delta = true; // ... und beim Abheben eines von mehreren Fingern
         if (data->active_mask == 0) {
             uint32_t dur = now - data->gesture_start_ms;
@@ -566,7 +631,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
             } else if (data->gesture_max_fingers >= 3) {
                 LOG_INF("gesture: 3-finger end dx=%d dy=%d dur=%u", data->gesture_dx,
                         data->gesture_dy, dur);
-                if (!data->gesture_moved && dur <= MXT_TAP2_MAX_MS) {
+                if (!data->gesture_moved && !data->swipe_fired && dur <= MXT_TAP2_MAX_MS) {
                     mxt_click(dev, INPUT_BTN_2); // Drei-Finger-Tap = Mittelklick
                 }
             } else if (data->gesture_max_fingers == 2 && !data->swipe_fired &&
@@ -706,6 +771,7 @@ static void mxt_report_data(const struct device *dev) {
     }
 
     mxt_scroll_pair(dev);
+    mxt_swipe3(dev);
 
     return;
 }
