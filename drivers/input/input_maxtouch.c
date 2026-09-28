@@ -73,14 +73,6 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 #define MXT_JUMP_LIMIT 150      // Obergrenze bei langem Messabstand
 #define MXT_FAST_MOVE 20        // ab dieser Schrittweite keine Abhebe-Pufferung (Sprungquelle)
 #define MXT_REPORT_INTERVAL_MS 8 // Cursor-Takt: 125 Hz, so viel traegt die BLE-Split-Strecke
-// Annaeherung eines zweiten Fingers: bevor der Chip ihn als eigenen Kontakt meldet, zieht er
-// ihn in den Blob des liegenden Fingers -- dessen Flaeche waechst sprunghaft. Waechst sie um
-// 30 % und mindestens 2 Knoten ueber das gleitende Mittel, wird der Cursor bis zu
-// MXT_APPROACH_HOLD_MS angehalten. Kommt der zweite Finger, wird die Bewegung verworfen,
-// sonst nachgeliefert. Die Traces zeigten den Ruck ~22 ms vor dem zweiten Kontakt.
-#define MXT_APPROACH_AREA_PCT 130
-#define MXT_APPROACH_AREA_MIN 2
-#define MXT_APPROACH_HOLD_MS 40
 #define MXT_CURSOR_WAIT_MS 150  // Cursor startet nach dieser Zeit ...
 #define MXT_CURSOR_START_MOVE 48 // ... oder nach ~1 mm Weg; Bewegung davor wird verworfen (QMK)
 #define MXT_SCROLL_DIV 80       // Counts pro Scroll-Schritt (~1.6 mm Fingerweg, war 2.4 mm)
@@ -208,14 +200,6 @@ static void mxt_flush_cursor(const struct device *dev, bool force) {
     if (!force && (now - data->last_report_ms) < MXT_REPORT_INTERVAL_MS) {
         return;
     }
-    if (data->approach_hold) {
-        if (!force && (int32_t)(now - data->approach_until) < 0) {
-            return; // moeglicher zweiter Finger im Anflug: noch nichts abschicken
-        }
-        data->approach_hold = false;
-        LOG_INF("gesture: approach hold released dx=%d dy=%d", data->pend_dx + data->hold_dx,
-                data->pend_dy + data->hold_dy);
-    }
     data->last_report_ms = now;
     // Bewegung wird eine Taktstufe zurueckgehalten: naehert sich ein zweiter Finger, laesst
     // sich die inzwischen gesammelte Schwerpunktverschiebung noch verwerfen, statt sie als
@@ -247,10 +231,6 @@ static void mxt_drop_cursor(const struct device *dev) {
     }
     data->pend_dx = data->pend_dy = 0;
     data->hold_dx = data->hold_dy = 0;
-    if (data->approach_hold) {
-        data->approach_hold = false;
-        LOG_INF("gesture: approach hold confirmed by second finger");
-    }
 }
 
 // Ein Scroll-Schritt aus dem Weg der Scroll-Geste: Anlauf-Schwelle, Geschwindigkeit fuers
@@ -507,7 +487,6 @@ static void mxt_reset_touches(const struct device *dev) {
     data->cursor_started = false;
     data->pend_dx = data->pend_dy = 0;
     data->hold_dx = data->hold_dy = 0;
-    data->approach_hold = false;
     k_work_cancel_delayable(&data->click_release_work);
     mxt_button_release(data);
 }
@@ -578,9 +557,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
         } else {
             data->pend_dx = data->pend_dy = 0;
             data->hold_dx = data->hold_dy = 0;
-            data->approach_hold = false;
         }
-        f->area_avg16 = area * 16;
         f->ampl_sum = 0;
         f->ampl_cnt = 0;
         f->ampl_avg = 0;
@@ -667,28 +644,12 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
             if (!data->cursor_started) {
                 // Wie im QMK-Treiber: Bewegung am Anfang verwerfen (nicht sammeln), bis
                 // Wartezeit oder Mindestweg erreicht sind. Kein Sprung beim Start.
-                // Die Flaeche waechst beim Aufsetzen noch: Mittel schon hier nachziehen, sonst
-                // haelt die Annaeherungs-Erkennung gleich beim Cursor-Start faelschlich an.
-                f->area_avg16 += area - f->area_avg16 / 16;
                 if (now - data->gesture_start_ms >= MXT_CURSOR_WAIT_MS ||
                     mxt_abs16(x - f->down_x) > MXT_CURSOR_START_MOVE ||
                     mxt_abs16(y - f->down_y) > MXT_CURSOR_START_MOVE) {
                     data->cursor_started = true;
                 }
                 break;
-            }
-            // Annaeherung eines zweiten Fingers: Flaeche springt ueber das gleitende Mittel
-            if (area * 16 * 100 >= f->area_avg16 * MXT_APPROACH_AREA_PCT &&
-                area * 16 >= f->area_avg16 + MXT_APPROACH_AREA_MIN * 16) {
-                if (!data->approach_hold) {
-                    data->approach_hold = true;
-                    data->approach_until = now + MXT_APPROACH_HOLD_MS;
-                    LOG_INF("gesture: approach hold (area=%d avg=%d)", area, f->area_avg16 / 16);
-                }
-            } else {
-                // Gleitendes Mittel (1/16) nur ohne Verdacht nachziehen, sonst zieht der
-                // Anflug die Referenz mit hoch
-                f->area_avg16 += area - f->area_avg16 / 16;
             }
             // Abhebe-Erkennung: Amplitude deutlich unter dem Mittel -> Bewegung zurueckhalten
             bool fast = (mxt_abs16(dx) + mxt_abs16(dy)) > MXT_FAST_MOVE;
