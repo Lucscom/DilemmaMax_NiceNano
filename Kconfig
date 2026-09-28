@@ -84,6 +84,7 @@ config DILEMMA_MAX_STATUS_SCREEN
     select LV_USE_CANVAS
     select LV_USE_IMG
     select LV_FONT_UNSCII_8
+    select LV_FONT_MONTSERRAT_10
     select LV_FONT_MONTSERRAT_16
     select LV_FONT_MONTSERRAT_18
     help

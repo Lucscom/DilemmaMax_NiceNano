@@ -191,7 +191,9 @@ static void draw_top(void) {
     lv_draw_label_dsc_t transport_dsc;
     init_label(&transport_dsc, COLOR_FG, &lv_font_montserrat_16, LV_TEXT_ALIGN_RIGHT);
     lv_draw_label_dsc_t status_dsc;
-    init_label(&status_dsc, COLOR_FG, &lv_font_unscii_8, LV_TEXT_ALIGN_CENTER);
+    // Montserrat 10 statt unscii_8: "Connecting..." braucht 66 px, unscii_8 (8 px pro
+    // Zeichen) haette auf den 68 px nur Platz fuer 8 Zeichen.
+    init_label(&status_dsc, COLOR_FG, &lv_font_montserrat_10, LV_TEXT_ALIGN_CENTER);
 
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
 
@@ -209,18 +211,18 @@ static void draw_top(void) {
     case ZMK_TRANSPORT_USB:
         symbol = LV_SYMBOL_USB;
         strcpy(transport, "USB");
-        status = "WIRED";
+        status = "Wired";
         break;
     case ZMK_TRANSPORT_BLE:
     default:
         symbol = LV_SYMBOL_WIFI;
         snprintf(transport, sizeof(transport), "BT %d", out->active_profile + 1);
         if (!out->active_bonded) {
-            status = "PAIRING";
+            status = "Pairing";
         } else if (out->active_connected) {
-            status = "ONLINE";
+            status = "Connected";
         } else {
-            status = "WAITING";
+            status = "Connecting...";
         }
         break;
     }
