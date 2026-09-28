@@ -109,12 +109,11 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 
 // Momentum: nach dem Abheben laeuft das Scrollen mit abnehmender Geschwindigkeit aus
 #define MXT_MOMENTUM_TICK_MS 25
-// pro Tick x 7/8 (~halbiert nach ca. 0.13 s). Mit 15/16 lief es doppelt so lange nach, was
-// zusammen mit den feineren Scroll-Schritten zu viel war.
-#define MXT_MOMENTUM_DECAY_NUM 7
-#define MXT_MOMENTUM_DECAY_DEN 8
-#define MXT_MOMENTUM_MIN_VEL 300    // Counts/s: darunter stoppen
-#define MXT_MOMENTUM_START_VEL 600  // Counts/s: ab dieser Abhebegeschwindigkeit auslaufen lassen
+// pro Tick x 3/4 (~halbiert nach ca. 60 ms). 15/16 und danach 7/8 liefen noch zu lange nach.
+#define MXT_MOMENTUM_DECAY_NUM 3
+#define MXT_MOMENTUM_DECAY_DEN 4
+#define MXT_MOMENTUM_MIN_VEL 400    // Counts/s: darunter stoppen
+#define MXT_MOMENTUM_START_VEL 900  // Counts/s: erst ab dieser Abhebegeschwindigkeit auslaufen lassen
 #define MXT_MOMENTUM_MAX_MS 3000
 
 static inline int16_t mxt_abs16(int16_t v) { return v < 0 ? -v : v; }
