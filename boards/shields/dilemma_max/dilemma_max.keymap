@@ -17,6 +17,17 @@
             // tap-ms must be > trigger-period-ms (16ms) so the msc tick fires at least once
             tap-ms = <25>;
         };
+
+        // Bluetooth-Profil freigeben: 1 s halten loest &bt BT_CLR aus (Kopplung des aktiven
+        // Profils loeschen, danach wartet es auf einen neuen Rechner). Kurz tippen tut nichts,
+        // damit die Kopplung nicht versehentlich verloren geht.
+        bt_clr_hold: bt_clr_hold {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "hold-preferred";
+            tapping-term-ms = <1000>;
+            bindings = <&bt>, <&none>;
+        };
     };
 
     keymap {
@@ -52,7 +63,7 @@
         nav_layer {
             display-name = "NAV";
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
-            // │     │BT0│BT1│BT2│BT3│BT4│   │   │   │   │   │   │     │
+            // │ CLR │BT0│BT1│BT2│BT3│BT4│   │   │   │   │   │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │     │   │   │   │   │   │   │   │   │ ↑ │   │ + │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
@@ -63,11 +74,12 @@
             //           │   │   │   │   │   │   │   │   │
             //           └───┴───┴───┴───┘   └───┴───┴───┴───┘
             // BT0-4 = Bluetooth Profile 0-4
+            // CLR   = 1 s halten: Kopplung des aktiven Profils loeschen -> neuen Rechner koppeln
             // FN    = Globe/Fn-Taste (Diktat)
             // MIS   = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
             bindings = <
-                &trans      &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2        &bt BT_SEL 3                        &bt BT_SEL 4  &trans  &trans    &trans    &trans     &trans  &trans
+                &bt_clr_hold BT_CLR_CMD 0 &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2        &bt BT_SEL 3                        &bt BT_SEL 4  &trans  &trans    &trans    &trans     &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP   &trans     &kp RBKT  &trans
                 &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &kp LS(NUBS)  &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &kp NUBS  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD
