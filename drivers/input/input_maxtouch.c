@@ -82,6 +82,11 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 // dann Richtung pruefen (Skalarprodukt > 0, Wege hoechstens 3:1 verschieden lang).
 #define MXT_SCROLL_PAIR_MIN 10
 #define MXT_SCROLL_PAIR_RATIO 3
+// Zwei Finger: Scrollen oder Pinch wird nach ~0.8 mm Weg einmal pro Beruehrung festgelegt.
+// Pinch braucht mindestens ~1.6 mm Abstandsaenderung; danach je ~4.5 mm ein Zoom-Schritt.
+#define MXT_TWO_DECIDE 40
+#define MXT_PINCH_DECIDE 80
+#define MXT_PINCH_STEP 220
 // Abhebe-Erkennung: nur bei deutlichem Amplitudeneinbruch und nur kurz, sonst wird die
 // zurueckgehaltene Bewegung als Sprung nachgeliefert (Log: bis zu 211 Counts am Stueck).
 #define MXT_LIFT_DROP_PCT 80    // Amplitude unter 80 % des Mittels = moegliches Abheben
@@ -283,11 +288,50 @@ static void mxt_clear_paths(struct mxt_data *data) {
     }
 }
 
-// Zwei getrennte Finger, einmal pro Messzyklus: gescrollt wird mit dem Mittel beider Wege,
-// aber nur wenn beide in aehnliche Richtung laufen. Pinch und Drehen scrollen so nicht.
-// Einzelne Messungen sind nur wenige Counts gross und verrauscht, deshalb wird der Weg
-// gesammelt, bis einer der Finger MXT_SCROLL_PAIR_MIN erreicht hat.
-static void mxt_scroll_pair(const struct device *dev) {
+// Laufen zwei Fingerwege in aehnliche Richtung? Skalarprodukt > 0 und Weglaengen hoechstens
+// MXT_SCROLL_PAIR_RATIO verschieden.
+static bool mxt_parallel(int16_t ax, int16_t ay, int16_t bx, int16_t by) {
+    int16_t la = mxt_abs16(ax) + mxt_abs16(ay);
+    int16_t lb = mxt_abs16(bx) + mxt_abs16(by);
+    int16_t lmax = la > lb ? la : lb;
+    int16_t lmin = la > lb ? lb : la;
+    int32_t dot = (int32_t)ax * bx + (int32_t)ay * by;
+    return dot > 0 && lmin * MXT_SCROLL_PAIR_RATIO >= lmax;
+}
+
+static uint16_t mxt_isqrt(uint32_t v) {
+    uint32_t r = 0, bit = 1UL << 30;
+    while (bit > v) {
+        bit >>= 2;
+    }
+    while (bit) {
+        if (v >= r + bit) {
+            v -= r + bit;
+            r = (r >> 1) + bit;
+        } else {
+            r >>= 1;
+        }
+        bit >>= 2;
+    }
+    return (uint16_t)r;
+}
+
+static int16_t mxt_finger_dist(const struct mxt_finger *a, const struct mxt_finger *b) {
+    int32_t dx = a->x - b->x, dy = a->y - b->y;
+    return (int16_t)mxt_isqrt((uint32_t)(dx * dx + dy * dy));
+}
+
+// Zwei getrennte Finger, einmal pro Messzyklus. Die Geste wird einmal pro Beruehrung
+// festgelegt, damit sie nicht zwischen Scrollen und Zoom kippt:
+//  - Erst den Weg beider Finger sammeln, bis einer MXT_TWO_DECIDE zurueckgelegt hat.
+//  - Hat sich dabei vor allem der Abstand geaendert (mindestens MXT_PINCH_DECIDE, doppelt
+//    so viel wie der Mittelpunkt gewandert ist): Pinch.
+//  - Laufen beide parallel: Scrollen. Sonst (Drehen, Rauschen) neu messen.
+// Beim Scrollen wird mit dem Mittel beider Wege gescrollt, aber nur solange beide in
+// aehnliche Richtung laufen. Einzelne Messungen sind nur wenige Counts gross und
+// verrauscht, deshalb wird der Weg gesammelt, bis einer der Finger MXT_SCROLL_PAIR_MIN
+// erreicht hat.
+static void mxt_two_fingers(const struct device *dev) {
     struct mxt_data *data = dev->data;
     if (!data->ready || data->dragging || data->gesture_max_fingers != 2 ||
         __builtin_popcount(data->active_mask) < 2) {
@@ -297,19 +341,69 @@ static void mxt_scroll_pair(const struct device *dev) {
     struct mxt_finger *a = &data->fingers[__builtin_ctz(mask)];
     mask &= mask - 1;
     struct mxt_finger *b = &data->fingers[__builtin_ctz(mask)];
-    int16_t la = mxt_abs16(a->scr_dx) + mxt_abs16(a->scr_dy);
-    int16_t lb = mxt_abs16(b->scr_dx) + mxt_abs16(b->scr_dy);
-    int16_t lmax = la > lb ? la : lb;
-    int16_t lmin = la > lb ? lb : la;
-    if (lmax < MXT_SCROLL_PAIR_MIN) {
+    uint32_t now = k_uptime_get_32();
+    int16_t dist = mxt_finger_dist(a, b);
+
+    switch (data->two_mode) {
+    case MXT_TWO_UNDECIDED: {
+        if (!data->two_ref_valid || now - data->two_start_ms > MXT_SCROLL_START_MS) {
+            // Neues Fingerpaar oder Fenster abgelaufen: ab hier neu messen
+            data->two_ref_valid = true;
+            data->two_start_ms = now;
+            data->two_d0 = dist;
+            data->two_ax = data->two_ay = data->two_bx = data->two_by = 0;
+        }
+        data->two_ax += a->scr_dx;
+        data->two_ay += a->scr_dy;
+        data->two_bx += b->scr_dx;
+        data->two_by += b->scr_dy;
+        mxt_clear_paths(data);
+        int16_t la = mxt_abs16(data->two_ax) + mxt_abs16(data->two_ay);
+        int16_t lb = mxt_abs16(data->two_bx) + mxt_abs16(data->two_by);
+        if ((la > lb ? la : lb) < MXT_TWO_DECIDE) {
+            return;
+        }
+        int16_t dd = mxt_abs16(dist - data->two_d0);
+        int16_t cx = (data->two_ax + data->two_bx) / 2, cy = (data->two_ay + data->two_by) / 2;
+        int16_t c = mxt_abs16(cx) + mxt_abs16(cy);
+        if (dd >= MXT_PINCH_DECIDE && dd > 2 * c) {
+            data->two_mode = MXT_TWO_PINCH;
+            data->pinch_ref = data->two_d0;
+            LOG_INF("gesture: pinch start d0=%d d=%d centroid=%d", data->two_d0, dist, c);
+            break; // der Weg bis hierher zaehlt schon fuer den ersten Zoom-Schritt
+        }
+        if (mxt_parallel(data->two_ax, data->two_ay, data->two_bx, data->two_by)) {
+            data->two_mode = MXT_TWO_SCROLL;
+            mxt_scroll_step(dev, cx, cy, now);
+            return;
+        }
+        data->two_ref_valid = false;
         return;
     }
-    int32_t dot = (int32_t)a->scr_dx * b->scr_dx + (int32_t)a->scr_dy * b->scr_dy;
-    if (dot > 0 && lmin * MXT_SCROLL_PAIR_RATIO >= lmax) {
-        mxt_scroll_step(dev, (a->scr_dx + b->scr_dx) / 2, (a->scr_dy + b->scr_dy) / 2,
-                        k_uptime_get_32());
+    case MXT_TWO_SCROLL: {
+        int16_t la = mxt_abs16(a->scr_dx) + mxt_abs16(a->scr_dy);
+        int16_t lb = mxt_abs16(b->scr_dx) + mxt_abs16(b->scr_dy);
+        if ((la > lb ? la : lb) < MXT_SCROLL_PAIR_MIN) {
+            return;
+        }
+        if (mxt_parallel(a->scr_dx, a->scr_dy, b->scr_dx, b->scr_dy)) {
+            mxt_scroll_step(dev, (a->scr_dx + b->scr_dx) / 2, (a->scr_dy + b->scr_dy) / 2, now);
+        }
+        mxt_clear_paths(data);
+        return;
     }
+    default:
+        break;
+    }
+
+    // Pinch: je MXT_PINCH_STEP Abstandsaenderung ein Zoom-Schritt, danach neu ansetzen
     mxt_clear_paths(data);
+    int16_t diff = dist - data->pinch_ref;
+    if (diff >= MXT_PINCH_STEP || diff <= -MXT_PINCH_STEP) {
+        data->pinch_ref = dist;
+        data->swipe_fired = true; // kein Tap und kein Flick mehr beim Abheben
+        mxt_gesture(dev, diff > 0 ? DM_GESTURE_PINCH_OUT : DM_GESTURE_PINCH_IN);
+    }
 }
 
 // Drei Finger, einmal pro Messzyklus: Weg des Mittelpunkts sammeln (Mittel der Fingerwege,
@@ -376,6 +470,8 @@ static void mxt_reset_touches(const struct device *dev) {
     }
     data->active_mask = 0;
     mxt_clear_paths(data);
+    data->two_mode = MXT_TWO_UNDECIDED;
+    data->two_ref_valid = false;
     data->gesture_max_fingers = 0;
     data->gesture_moved = false;
     data->gesture_dx = data->gesture_dy = 0;
@@ -446,6 +542,8 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
         f->merged = merged;
         f->down_area = area;
         mxt_clear_paths(data); // Fingerpaar hat sich geaendert: Weg neu sammeln
+        data->two_mode = MXT_TWO_UNDECIDED;
+        data->two_ref_valid = false;
         data->skip_delta = true; // Position des fuehrenden Fingers springt beim Aufsetzen
         if (!first) {
             mxt_drop_cursor(dev); // zweiter Finger: den Anlauf-Ruck nicht abschicken
@@ -612,6 +710,8 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
         f->down_area = 0; // Referenz gilt nur fuer diese Beruehrung
         data->active_mask &= ~BIT(idx);
         mxt_clear_paths(data);
+        data->two_mode = MXT_TWO_UNDECIDED;
+        data->two_ref_valid = false;
         data->skip_delta = true; // ... und beim Abheben eines von mehreren Fingern
         if (data->active_mask == 0) {
             uint32_t dur = now - data->gesture_start_ms;
@@ -657,7 +757,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
                 uint32_t max_ms = data->gesture_max_fingers >= 2 ? MXT_TAP2_MAX_MS : MXT_TAP_MAX_MS;
                 LOG_INF("gesture: end fingers=%d moved=%d dur=%u", data->gesture_max_fingers,
                         data->gesture_moved, dur);
-                bool two_finger_tap = data->gesture_max_fingers == 2 &&
+                bool two_finger_tap = data->gesture_max_fingers == 2 && !data->swipe_fired &&
                                       (!data->gesture_moved || dur <= MXT_TAP2_IGNORE_MOVE_MS);
                 if (data->gesture_max_fingers == 1 && !data->gesture_moved && dur <= max_ms) {
                     mxt_click(dev, INPUT_BTN_0);
@@ -770,7 +870,7 @@ static void mxt_report_data(const struct device *dev) {
         }
     }
 
-    mxt_scroll_pair(dev);
+    mxt_two_fingers(dev);
     mxt_swipe3(dev);
 
     return;

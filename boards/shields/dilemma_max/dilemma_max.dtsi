@@ -111,10 +111,15 @@
     gesture_keys: gesture_keys {
         compatible = "dilemma,input-processor-gesture-keys";
         #input-processor-cells = <0>;
+        // Zoom ist fuer ein US-Layout am Mac eingetragen. Bei deutschem Layout liegt "+" auf
+        // RBKT und "-" auf FSLH: dann in der Keymap ueberschreiben, z.B.
+        //   &gesture_keys { keycodes = <... LG(RBKT) LG(FSLH)>; };
         codes = <DM_GESTURE_SWIPE3_LEFT DM_GESTURE_SWIPE3_RIGHT
-                 DM_GESTURE_SWIPE3_UP DM_GESTURE_SWIPE3_DOWN>;
+                 DM_GESTURE_SWIPE3_UP DM_GESTURE_SWIPE3_DOWN
+                 DM_GESTURE_PINCH_OUT DM_GESTURE_PINCH_IN>;
         keycodes = <LC(RIGHT) LC(LEFT)     // Space rechts / links
-                    LC(UP) LC(DOWN)>;      // Mission Control / App-Expose
+                    LC(UP) LC(DOWN)        // Mission Control / App-Expose
+                    LG(EQUAL) LG(MINUS)>;  // Zoom rein / raus
     };
 };
 

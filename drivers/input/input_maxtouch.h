@@ -26,6 +26,12 @@ struct mxt_finger {
     int16_t scr_dx, scr_dy; // Weg seit der letzten Auswertung am Zyklusende (Scroll-Paar, Wischen)
 };
 
+enum mxt_two_mode {
+    MXT_TWO_UNDECIDED,
+    MXT_TWO_SCROLL,
+    MXT_TWO_PINCH,
+};
+
 struct mxt_data {
     const struct device *dev;
     // Gesten: Tap = Linksklick, 2-Finger-Tap = Rechtsklick, 2 Finger ziehen = Scrollen
@@ -51,6 +57,13 @@ struct mxt_data {
     bool swipe_fired;  // Wischgeste in dieser Beruehrung bereits ausgeloest
     uint32_t swipe_start_ms; // Beginn des Zeitfensters fuers Drei-Finger-Wischen
     int16_t swipe_rem_x, swipe_rem_y; // Divisionsrest beim Mitteln der Fingerwege
+    // Zwei Finger: Scrollen oder Pinch, einmal pro Beruehrung festgelegt
+    enum mxt_two_mode two_mode;
+    bool two_ref_valid;       // two_d0/two_start_ms gelten fuer das aktuelle Fingerpaar
+    uint32_t two_start_ms;    // Beginn des Messfensters fuer die Entscheidung
+    int16_t two_d0;           // Fingerabstand zu Beginn des Messfensters
+    int16_t two_ax, two_ay, two_bx, two_by; // Weg beider Finger im Messfenster
+    int16_t pinch_ref;        // Fingerabstand beim letzten Zoom-Schritt
     bool cursor_started; // Cursor laeuft erst nach Wartezeit/Mindestweg, Bewegung davor wird verworfen
     // Cursor-Takt: der Chip liefert im Free-Run bis zu 300 Messungen/s, die BLE-Split-Strecke
     // traegt das nicht. Bewegung wird aufsummiert und mit festem Takt abgeschickt.
