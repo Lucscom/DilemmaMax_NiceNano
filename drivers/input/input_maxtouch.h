@@ -23,6 +23,7 @@ struct mxt_finger {
     int16_t buf_x, buf_y;
     uint32_t last_ms;   // Zeitpunkt der letzten Messung, Basis fuer die Sprunggrenze
     uint8_t jump_skip;  // Sprung erkannt: auch die naechste Messung verwerfen
+    int16_t scr_dx, scr_dy; // Weg seit der letzten Zwei-Finger-Scroll-Auswertung
 };
 
 struct mxt_data {
