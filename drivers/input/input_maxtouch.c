@@ -226,15 +226,15 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
     if (idx >= MXT_MAX_FINGERS || !data->ready) {
         return;
     }
-    bool merged = area >= MXT_MERGED_AREA;
-    {
-        struct mxt_finger *mf = &data->fingers[idx];
-        if (!merged && area >= MXT_MERGED_AREA_MIN && mf->down_area &&
-            area * 2 >= mf->down_area * MXT_MERGED_GROWTH_NUM) {
-            merged = true;
-        }
-    }
     struct mxt_finger *f = &data->fingers[idx];
+    bool merged = area >= MXT_MERGED_AREA;
+    // Das Flaechenwachstum nur fuer einen schon liegenden Finger pruefen: beim Aufsetzen
+    // stammt down_area sonst noch von der vorigen Beruehrung dieses Slots, und ein normaler
+    // Tap nach einem kleineren Vorkontakt wuerde als zwei Finger (Rechtsklick) gewertet.
+    if (!merged && ev == MOVE && f->active && area >= MXT_MERGED_AREA_MIN && f->down_area &&
+        area * 2 >= f->down_area * MXT_MERGED_GROWTH_NUM) {
+        merged = true;
+    }
     int16_t x = (int16_t)x_pos, y = (int16_t)y_pos;
     uint32_t now = k_uptime_get_32();
 
@@ -442,6 +442,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
             break; // UP fuer einen Finger, der nicht (mehr) aktiv ist: keine zweite Gestenauswertung
         }
         f->active = false;
+        f->down_area = 0; // Referenz gilt nur fuer diese Beruehrung
         data->active_mask &= ~BIT(idx);
         data->skip_delta = true; // ... und beim Abheben eines von mehreren Fingern
         if (data->active_mask == 0) {
