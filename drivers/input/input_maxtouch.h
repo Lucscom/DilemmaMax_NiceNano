@@ -72,6 +72,11 @@ struct mxt_data {
     // verworfen werden, wenn sich nachtraeglich ein zweiter Finger zeigt.
     int16_t hold_dx, hold_dy;
     uint32_t last_report_ms;
+    // Anlauf-Fenster nach dem Aufsetzen: Cursor-Bewegung nur sammeln (MXT_EARLY_MS), danach
+    // den gesammelten Rest (backlog) verteilt nachliefern
+    bool early_active;
+    uint32_t early_until;
+    int16_t backlog_dx, backlog_dy;
     struct k_work_delayable click_release_work;
     uint16_t click_button;
     bool irq_mode;      // CHG-Interrupt statt Dauer-Polling

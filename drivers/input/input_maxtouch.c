@@ -75,6 +75,14 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 #define MXT_REPORT_INTERVAL_MS 8 // Cursor-Takt: 125 Hz, so viel traegt die BLE-Split-Strecke
 #define MXT_CURSOR_WAIT_MS 150  // Cursor startet nach dieser Zeit ...
 #define MXT_CURSOR_START_MOVE 48 // ... oder nach ~1 mm Weg; Bewegung davor wird verworfen (QMK)
+// Anlauf-Fenster: zum Scrollen landen beide Finger fast gleichzeitig (Log: 28..130 ms
+// Abstand). In dieser Zeit zieht der anfliegende zweite Finger den Schwerpunkt des ersten
+// um mehr als 1 mm -- das startet den Cursor und ging als Ruck raus. Deshalb wird die
+// Cursor-Bewegung nach dem Aufsetzen MXT_EARLY_MS lang nur gesammelt: kommt ein zweiter
+// Finger, wird sie verworfen, sonst ueber die folgenden Reports verteilt nachgeliefert
+// (pro Report 1/MXT_EARLY_PAYOUT_DIV des Rests), damit auch das keinen Ruck gibt.
+#define MXT_EARLY_MS 150
+#define MXT_EARLY_PAYOUT_DIV 3
 #define MXT_SCROLL_DIV 80       // Counts pro Scroll-Schritt (~1.6 mm Fingerweg, war 2.4 mm)
 #define MXT_SCROLL_START_MOVE 40 // Scroll startet nach ~0.8 mm ...
 #define MXT_SCROLL_START_MS 300  // ... die innerhalb dieser Zeit zusammenkommen muessen
@@ -200,6 +208,16 @@ static void mxt_flush_cursor(const struct device *dev, bool force) {
     if (!force && (now - data->last_report_ms) < MXT_REPORT_INTERVAL_MS) {
         return;
     }
+    if (data->early_active) {
+        if (!force && (int32_t)(now - data->early_until) < 0) {
+            return; // Anlauf-Fenster: noch sammeln, ein zweiter Finger koennte folgen
+        }
+        // Fenster vorbei, kein zweiter Finger: Gesammeltes wird verteilt nachgeliefert
+        data->early_active = false;
+        data->backlog_dx += data->hold_dx + data->pend_dx;
+        data->backlog_dy += data->hold_dy + data->pend_dy;
+        data->hold_dx = data->hold_dy = data->pend_dx = data->pend_dy = 0;
+    }
     data->last_report_ms = now;
     // Bewegung wird eine Taktstufe zurueckgehalten: naehert sich ein zweiter Finger, laesst
     // sich die inzwischen gesammelte Schwerpunktverschiebung noch verwerfen, statt sie als
@@ -209,9 +227,23 @@ static void mxt_flush_cursor(const struct device *dev, bool force) {
     data->hold_dy = data->pend_dy;
     data->pend_dx = data->pend_dy = 0;
     if (force) {
-        dx += data->hold_dx;
-        dy += data->hold_dy;
+        dx += data->hold_dx + data->backlog_dx;
+        dy += data->hold_dy + data->backlog_dy;
         data->hold_dx = data->hold_dy = 0;
+        data->backlog_dx = data->backlog_dy = 0;
+    } else if (data->backlog_dx || data->backlog_dy) {
+        int16_t bx = data->backlog_dx / MXT_EARLY_PAYOUT_DIV;
+        int16_t by = data->backlog_dy / MXT_EARLY_PAYOUT_DIV;
+        if (bx == 0) {
+            bx = data->backlog_dx; // kleiner Rest: auf einmal
+        }
+        if (by == 0) {
+            by = data->backlog_dy;
+        }
+        dx += bx;
+        dy += by;
+        data->backlog_dx -= bx;
+        data->backlog_dy -= by;
     }
     if (dx == 0 && dy == 0) {
         return;
@@ -225,12 +257,17 @@ static void mxt_flush_cursor(const struct device *dev, bool force) {
 // gemeldet hat. Die noch nicht abgeschickte Bewegung ist genau dieser Ruck -> wegwerfen.
 static void mxt_drop_cursor(const struct device *dev) {
     struct mxt_data *data = dev->data;
-    if (data->pend_dx || data->pend_dy || data->hold_dx || data->hold_dy) {
-        LOG_INF("gesture: cursor drop at scroll start dx=%d dy=%d",
-                data->pend_dx + data->hold_dx, data->pend_dy + data->hold_dy);
+    int16_t dx = data->pend_dx + data->hold_dx + data->backlog_dx;
+    int16_t dy = data->pend_dy + data->hold_dy + data->backlog_dy;
+    if (dx || dy || data->early_active) {
+        // early=1: der zweite Finger kam im Anlauf-Fenster, dx/dy ist die verworfene Drift
+        LOG_INF("gesture: cursor drop at scroll start dx=%d dy=%d early=%d", dx, dy,
+                data->early_active);
     }
     data->pend_dx = data->pend_dy = 0;
     data->hold_dx = data->hold_dy = 0;
+    data->early_active = false;
+    data->backlog_dx = data->backlog_dy = 0;
 }
 
 // Ein Scroll-Schritt aus dem Weg der Scroll-Geste: Anlauf-Schwelle, Geschwindigkeit fuers
@@ -487,6 +524,8 @@ static void mxt_reset_touches(const struct device *dev) {
     data->cursor_started = false;
     data->pend_dx = data->pend_dy = 0;
     data->hold_dx = data->hold_dy = 0;
+    data->backlog_dx = data->backlog_dy = 0;
+    data->early_active = false;
     k_work_cancel_delayable(&data->click_release_work);
     mxt_button_release(data);
 }
@@ -557,6 +596,9 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
         } else {
             data->pend_dx = data->pend_dy = 0;
             data->hold_dx = data->hold_dy = 0;
+            data->backlog_dx = data->backlog_dy = 0;
+            data->early_active = true;
+            data->early_until = now + MXT_EARLY_MS;
         }
         f->ampl_sum = 0;
         f->ampl_cnt = 0;
