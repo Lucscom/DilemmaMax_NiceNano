@@ -620,7 +620,9 @@ static void mxt_report_data(const struct device *dev) {
     uint8_t msg_count = 0;
     ret = mxt_seq_read(dev, data->t44_message_count_address, &msg_count, 1);
 
-    // Diagnose: Heartbeat ca. alle 2s (bei 8ms Polling), zeigt dass Timer + I2C laufen
+    // Diagnose: Heartbeat bei jedem 250. Auslesen, zeigt dass Interrupt/Timer + I2C laufen.
+    // Im Interrupt-Betrieb wird nur bei anstehenden Meldungen gelesen, der Abstand haengt
+    // also von der Beruehrung ab (in Ruhe kommt keiner).
     static uint32_t poll_count;
     if ((++poll_count % 250) == 1) {
         LOG_INF("poll #%u: T44 msg_count=%d (i2c ret=%d)", poll_count, msg_count, ret);
@@ -631,8 +633,6 @@ static void mxt_report_data(const struct device *dev) {
         return;
     }
 
-    uint16_t pending_fingers = 0;
-    bool last_touch_status = false;
     for (int i = 0; i < msg_count; i++) {
         struct mxt_message msg;
 
@@ -649,7 +649,6 @@ static void mxt_report_data(const struct device *dev) {
 
         if (is_t100_report(dev, msg.report_id)) {
             uint8_t finger_idx = msg.report_id - data->t100_first_report_id - 2;
-            bool pending_for_finger = (pending_fingers & BIT(finger_idx)) != 0;
 
             enum t100_touch_event ev = msg.data[0] & 0xF;
             uint16_t x_pos = msg.data[1] + (msg.data[2] << 8);
@@ -685,7 +684,6 @@ static void mxt_report_data(const struct device *dev) {
             default:
                 break;
             }
-            (void)pending_for_finger;
         } else if (msg.report_id == data->t100_first_report_id) {
             // T100-Status (scraux Bit 0): data[1] = Zahl der gemeldeten Touches. Er kommt vor
             // den Finger-Meldungen seines Zyklus, ein offener Verdacht aus dem vorigen Zyklus
@@ -706,9 +704,6 @@ static void mxt_report_data(const struct device *dev) {
             LOG_HEXDUMP_DBG(msg.data, 5, "message data");
         }
     }
-
-    (void)pending_fingers;
-    (void)last_touch_status;
 
     mxt_scroll_pair(dev);
 
