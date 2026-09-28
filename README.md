@@ -50,18 +50,21 @@ chasing that as if it were a software bug.
 ```
 boards/shields/dilemma_max/    shield definition, keymap, overlays
 config/                        west manifest and per-side Kconfig
-src/                           RGB split helpers, the nice!view status screen and
-                               the charge reporting, compiled into the ZMK app
+src/                           RGB split helpers, the nice!view status screen, the
+                               charge reporting and the gesture key processor,
+                               compiled into the ZMK app
+drivers/input/                 the maXTouch trackpad driver, including all gestures
+dts/bindings/                  devicetree bindings for the driver and the processor
+include/dt-bindings/           gesture codes shared by driver, processor and devicetree
 Kconfig, CMakeLists.txt        make this repo a Zephyr module for those sources
 build.yaml                     GitHub Actions build matrix
 cirque_test/                   Arduino sketches used to bring the pad up
 ```
 
-The trackpad driver itself lives in a separate repository,
-[philippkober/maxtouch-zephyr-module](https://github.com/philippkober/maxtouch-zephyr-module),
-forked from george-norton's module and pulled in by `config/west.yml`. Changes
-to gestures or driver behaviour go there, changes to tuning values go into the
-right side overlay here.
+The trackpad driver started out in a separate repository
+(philippkober/maxtouch-zephyr-module, forked from george-norton's module) and
+now lives in `drivers/input/`. Changes to gestures or driver behaviour go
+there, changes to tuning values go into the right side overlay.
 
 ---
 
@@ -106,8 +109,10 @@ Which halves need flashing depends on what changed:
 
 | Changed file | Flash |
 |---|---|
-| `dilemma_max_right.overlay`, the driver module | right only |
-| `dilemma_max.dtsi`, `Kconfig.shield`, `dilemma_max.keymap` | both |
+| `dilemma_max_right.overlay`, `drivers/input/` | right only |
+| `src/gesture_keys.c` | left only |
+| `dilemma_max.dtsi` (including the gesture shortcuts), `Kconfig.shield`, `dilemma_max.keymap` | both |
+| `include/dt-bindings/dilemma_max/gestures.h` | both |
 | `config/dilemma_max_left.conf` and split parameters | both |
 
 ### USB logging
@@ -143,14 +148,16 @@ first one was the original reason nothing worked at all:
    events into HID reports.
 
 Cursor speed is the scaler on the listener in `dilemma_max.dtsi`
-(`&zip_xy_scaler 1 3` — a larger second number is slower). The logical
+(`&zip_xy_scaler 2 5` — a larger second number is slower). The logical
 resolution in `Kconfig.shield` is deliberately fine (2048 × 2438 counts, about
 48.8 counts/mm on both axes) so that the controller's own movement hysteresis
 and the scroll step do not become coarse.
 
 ### Gestures
 
-Implemented in the driver fork, not in ZMK:
+Implemented in `drivers/input/input_maxtouch.c`, not in ZMK. macOS accepts no
+precision touchpad from a third-party device, so everything is recognised in
+the firmware and sent as mouse events or key shortcuts:
 
 | Gesture | Action |
 |---|---|
@@ -158,16 +165,57 @@ Implemented in the driver fork, not in ZMK:
 | Tap | Left click |
 | Double tap | Double click |
 | Tap, then touch and move | Drag |
-| Two fingers moving | Scroll, with momentum after lift |
+| Two fingers moving in parallel | Scroll, one step per ~1.6 mm, with a short momentum after lift |
+| Two fingers moving apart / together | Zoom in / out, one step per ~4.5 mm (`Cmd+=` / `Cmd+-`) |
 | Two finger tap | Right click |
 | Two finger flick sideways | Mouse buttons 4/5 — page back/forward in Safari |
+| Three finger swipe left / right | Next / previous space (`Ctrl+→` / `Ctrl+←`) |
+| Three finger swipe up / down | Mission Control / App Exposé (`Ctrl+↑` / `Ctrl+↓`) |
 | Three finger tap | Middle click |
 
+Two fingers settle on scrolling or zooming once per touch, after about 0.8 mm
+of movement, so a gesture cannot flip between the two. A three finger swipe
+needs about 6 mm in one clear direction within 700 ms and fires once per
+touch. Rotation is not implemented.
+
 **Do not route trackpad events into key behaviours.** Mapping button codes to
-`&kp` shortcuts through `zip_button_behaviors` (for spaces switching, Mission
-Control and so on) crashes *both* halves as soon as the gesture fires, because
-the behaviour is invoked with a virtual key position derived from a split input
-device. Only real mouse buttons (`INPUT_BTN_0` … `INPUT_BTN_4`) are safe.
+`&kp` shortcuts through `zip_button_behaviors` crashed *both* halves as soon
+as the gesture fired. The likely reason: input processors run in the Zephyr
+input thread, whose stack stays at the Zephyr default of 512 bytes on the
+central (ZMK only raises it on peripherals), and a behaviour runs the whole
+keymap and HID chain synchronously in there.
+
+Shortcuts therefore take a separate path. The driver reports a recognised
+gesture as a key press and release with its own code from
+`include/dt-bindings/dilemma_max/gestures.h` (`DM_GESTURE_*`, above
+`INPUT_BTN_4`, so the listener never mistakes them for mouse buttons). The
+split link forwards type, code and value unchanged. On the left half the input
+processor `dilemma,input-processor-gesture-keys` (`src/gesture_keys.c`, first
+in the listener's `input-processors`) catches these codes, only queues the
+keycode in the input thread and raises press and release as
+`keycode_state_changed` events on the system work queue, 30 ms apart. No
+behaviour, key position or keymap is involved.
+
+The shortcut for each gesture is set on the `gesture_keys` node at the end of
+`dilemma_max.dtsi`:
+
+| Property | Meaning |
+|---|---|
+| `codes` | Gesture codes to catch (`DM_GESTURE_*`) |
+| `keycodes` | Shortcut per code, same order, ZMK keycodes such as `LC(RIGHT)` |
+
+The zoom shortcuts assume a US layout on the Mac. With a German host layout
+`+` sits on `RBKT` and `-` on `FSLH`; override the node from the keymap of a
+layout branch:
+
+```
+&gesture_keys {
+    keycodes = <LC(RIGHT) LC(LEFT) LC(UP) LC(DOWN) LG(RBKT) LG(FSLH)>;
+};
+```
+
+`keys.h` has to be included after the matrix transform in `dilemma_max.dtsi`:
+its `RC(keycode)` would otherwise replace the transform's `RC(row, col)`.
 
 ### Driver behaviour worth knowing
 
@@ -188,7 +236,18 @@ device. Only real mouse buttons (`INPUT_BTN_0` … `INPUT_BTN_4`) are safe.
 - **Merged fingers.** Two fingers close together are reported as one touch.
   A contact counts as merged when its area reaches 24, or reaches 16 after
   growing by half since touch down, and then drives scrolling rather than the
-  cursor.
+  cursor. The growth check only applies to a finger that is already down; at
+  touch down only the absolute threshold counts, since the reference area
+  otherwise still belonged to the previous touch.
+- **Two-finger scrolling.** Both fingers collect their movement and are
+  evaluated once per message batch: the scroll step is the mean of both paths,
+  and only while they point the same way (positive dot product, lengths within
+  3:1). Pinching or rotating does not scroll.
+- **Stale fingers.** If the T100 status message reports zero touches while
+  fingers are still active, an UP got lost. The check waits for the next
+  status message or 50 ms, because the UPs of the same cycle arrive after the
+  status, and then resets all finger, gesture and cursor state and releases a
+  held button without any click.
 
 ### Tuning values
 
