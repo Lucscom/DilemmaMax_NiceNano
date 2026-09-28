@@ -8,6 +8,8 @@
 
 #include "dilemma_max-layouts.dtsi"
 #include <input/processors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/dilemma_max/gestures.h>
 
 / {
     chosen {
@@ -98,8 +100,21 @@
         // Krumme Verhaeltnisse sind unproblematisch: der Scaler traegt den Rest in den
         // naechsten Event weiter, langsame Bewegungen gehen also nicht verloren.
         // Kein zip_button_behaviors: das Ausloesen von Tastenverhalten aus den Ereignissen
-        // eines per Split angebundenen Trackpads liess beide Haelften abstuerzen.
-        input-processors = <&zip_xy_scaler 2 5>;
+        // eines per Split angebundenen Trackpads liess beide Haelften abstuerzen. Gesten
+        // laufen stattdessen ueber gesture_keys (src/gesture_keys.c).
+        input-processors = <&gesture_keys &zip_xy_scaler 2 5>;
+    };
+
+    // Trackpad-Gesten -> Tastenkuerzel fuer macOS. Der Treiber (rechts) meldet die Geste als
+    // eigenen Code, dieser Processor im Listener (links) loest das Kuerzel aus. Richtungen
+    // wie am Mac-Trackpad: Finger nach links holt den Space rechts daneben.
+    gesture_keys: gesture_keys {
+        compatible = "dilemma,input-processor-gesture-keys";
+        #input-processor-cells = <0>;
+        codes = <DM_GESTURE_SWIPE3_LEFT DM_GESTURE_SWIPE3_RIGHT
+                 DM_GESTURE_SWIPE3_UP DM_GESTURE_SWIPE3_DOWN>;
+        keycodes = <LC(RIGHT) LC(LEFT)     // Space rechts / links
+                    LC(UP) LC(DOWN)>;      // Mission Control / App-Expose
     };
 };
 

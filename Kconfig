@@ -3,6 +3,20 @@
 # maXTouch-Trackpadtreiber (frueher eigenes Modul, siehe CMakeLists.txt)
 rsource "drivers/Kconfig"
 
+config DILEMMA_MAX_GESTURE_KEYS
+    bool "Trackpad-Gesten als Tastenkuerzel ausloesen"
+    default y
+    depends on DT_HAS_DILEMMA_INPUT_PROCESSOR_GESTURE_KEYS_ENABLED
+    depends on ZMK_POINTING && (!ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL)
+    help
+      Input-Processor fuer die linke Haelfte (src/gesture_keys.c). Der Trackpad-Treiber
+      meldet erkannte Gesten (Drei-Finger-Wischen, Pinch) als eigene Codes, dieser
+      Processor loest dafuer die im Devicetree zugeordneten Tastenkuerzel aus.
+
+      Die Kuerzel laufen als keycode_state_changed-Events ueber die System-Workqueue,
+      nicht ueber Behaviours: Behaviours aus dem Input-Listener liessen beide Haelften
+      abstuerzen (vermutlich der kleine Stack des Input-Threads auf dem Central).
+
 config DILEMMA_MAX_RGB_SPLIT_SYNC
     bool "Underglow-Zustand vom Central an die Peripherals spiegeln"
     default y

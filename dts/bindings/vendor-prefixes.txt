@@ -1,0 +1,2 @@
+# Eigene Hersteller-Praefixe fuer Devicetree-Compatibles dieses Repos
+dilemma	Dilemma Max (dieses Config-Repo)
