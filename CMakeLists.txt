@@ -20,3 +20,4 @@ target_sources_ifdef(CONFIG_DILEMMA_MAX_RGB_SLEEP_BLANK app PRIVATE src/rgb_slee
 target_sources_ifdef(CONFIG_DILEMMA_MAX_STATUS_SCREEN app PRIVATE src/status_screen.c)
 target_sources_ifdef(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT app PRIVATE src/peripheral_charge_report.c)
 target_sources_ifdef(CONFIG_DILEMMA_MAX_GESTURE_KEYS app PRIVATE src/gesture_keys.c)
+target_sources_ifdef(CONFIG_DILEMMA_MAX_BATTERY_FILTER app PRIVATE src/battery_filter.c)

@@ -13,6 +13,14 @@
     chosen {
         zmk,physical-layout = &default_layout;
         zmk,underglow = &led_strip;
+        zmk,battery = &vbatt_filter;
+    };
+
+    // Setzt sich vor den VDDH-Sensor des nice!nano (vbatt) und rechnet den Spannungseinbruch
+    // durch das Underglow aus dem Akkustand heraus, siehe src/battery_filter.c.
+    vbatt_filter: vbatt_filter {
+        compatible = "dilemma,battery-filter";
+        source = <&vbatt>;
     };
 
     kscan: kscan {

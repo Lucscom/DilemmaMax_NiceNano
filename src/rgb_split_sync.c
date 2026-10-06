@@ -18,8 +18,12 @@
  *
  * Lokal wird nichts ausgeloest: das Central braucht seinen eigenen Auto-Off-Pfad,
  * der sich den Zustand vor dem Idle merkt und ihn beim Aufwachen wiederherstellt.
+ *
+ * Denselben Zustand bekommt ein Peripheral, sobald es sich verbindet - bis dahin haelt
+ * es sein Underglow aus (src/rgb_split_follow.c).
  */
 
+#include <zephyr/bluetooth/conn.h>
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/init.h>
@@ -45,12 +49,17 @@ LOG_MODULE_REGISTER(dilemma_max_rgb_sync, CONFIG_ZMK_LOG_LEVEL);
 // Linker-Order. Die Listener-Kette laeuft in Mikrosekunden durch.
 #define DISPATCH_DELAY K_MSEC(5)
 
-// Nach dem Aufwachen verbindet sich ein Peripheral, das im Deep Sleep war, erst ein
-// paar Sekunden spaeter - bis dahin laeuft jedes Kommando ins Leere. Es koppelt sein
-// Underglow deshalb selbst an die Verbindung (src/rgb_split_follow.c) und schaltet
-// beim Verbinden ein. Diese Nachschuesse korrigieren das, falls das falsch war.
+// Ein Kommando kann unterwegs verloren gehen, deshalb nach jedem Wechsel ein paar
+// Nachschuesse.
 #define WAKE_RETRIES 2
 #define WAKE_RETRY_INTERVAL K_SECONDS(2)
+
+// Ein Peripheral, das sich gerade verbunden hat, bleibt dunkel, bis es den Zustand von
+// hier bekommt (src/rgb_split_follow.c). Direkt nach dem Verbinden laeuft ein Kommando
+// aber noch ins Leere: erst muessen Verschluesselung und Service-Discovery durch sein.
+// Deshalb der Abstand vor dem ersten Versuch und mehr Nachschuesse als beim Aufwachen.
+#define CONNECT_FIRST_DELAY K_SECONDS(1)
+#define CONNECT_RETRIES 5
 
 static void rgb_split_sync_send(bool on) {
     struct zmk_behavior_binding binding = {
@@ -113,6 +122,33 @@ static int rgb_split_sync_listener(const zmk_event_t *eh) {
 
 ZMK_LISTENER(dilemma_max_rgb_split_sync, rgb_split_sync_listener);
 ZMK_SUBSCRIPTION(dilemma_max_rgb_split_sync, zmk_activity_state_changed);
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE)
+/*
+ * Verbindet sich ein Peripheral, bekommt es den aktuellen Zustand. Ohne das erfuhr eine
+ * Haelfte, die bei laufendem Central eingeschaltet wurde, erst beim naechsten Wechsel des
+ * Activity-States oder beim Resync nach zwei Minuten, was gilt.
+ *
+ * ZMK v0.3 hat auf dem Central kein Event fuer "Peripheral verbunden", deshalb direkt die
+ * Callbacks des Bluetooth-Stacks. Die laufen auch fuer die Verbindung zum Rechner, da ist
+ * diese Haelfte aber selbst Peripheral.
+ */
+static void rgb_split_sync_connected(struct bt_conn *conn, uint8_t conn_err) {
+    struct bt_conn_info info;
+
+    if (conn_err != 0 || bt_conn_get_info(conn, &info) != 0 ||
+        info.role != BT_CONN_ROLE_CENTRAL) {
+        return;
+    }
+
+    atomic_set(&wake_retries_left, CONNECT_RETRIES);
+    k_work_reschedule(&rgb_split_sync_work, CONNECT_FIRST_DELAY);
+}
+
+BT_CONN_CB_DEFINE(rgb_split_sync_conn_callbacks) = {
+    .connected = rgb_split_sync_connected,
+};
+#endif // IS_ENABLED(CONFIG_ZMK_SPLIT_BLE)
 
 static int rgb_split_sync_init(void) {
     // Erster Abgleich, sobald der Split-Link steht: ein frisch gestartetes Peripheral

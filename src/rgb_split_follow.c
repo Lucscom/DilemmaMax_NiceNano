@@ -6,24 +6,31 @@
  * im Deep Sleep oder ausser Reichweite - kommt kein Kommando mehr und der Strip
  * bliebe bis zum eigenen Sleep-Timeout an, also bis zu 15 Minuten.
  *
- * Deshalb haengt das Underglow hier zusaetzlich an der Split-Verbindung: faellt sie
- * weg, geht der Strip aus (nach CONFIG_ZMK_SPLIT_BLE_PREF_TIMEOUT, Default 4 s).
+ * Deshalb gilt hier: ohne Split-Verbindung ist das Underglow aus.
  *
- * Beim Verbinden wird eingeschaltet: das Peripheral verbindet sich nur, wenn das
- * Central laeuft, und das heisst praktisch immer, dass gerade getippt wird. Wartet
- * man hier stattdessen auf ein Kommando, bliebe die Seite nach jedem Aufwachen aus
- * dem Deep Sleep dunkel - das Central hat sein RGB_ON dann schon geschickt, bevor
- * die Verbindung ueberhaupt stand. Liegt die Annahme daneben, weil das Underglow per
- * &rgb_ug RGB_TOG aus ist oder das Central bereits idle war, korrigieren das die
- * Nachschuesse, die das Central nach dem Aufwachen schickt.
+ *  - Faellt die Verbindung weg, geht der Strip aus (nach CONFIG_ZMK_SPLIT_BLE_PREF_TIMEOUT,
+ *    Default 4 s).
+ *  - Nach dem Start bleibt er aus. ZMK stellt beim Laden der Settings den zuletzt
+ *    gespeicherten Zustand wieder her, und der ist "an", wenn die Haelfte leuchtend
+ *    ausgeschaltet wurde oder eingeschlafen ist.
+ *  - Beim Verbinden passiert hier nichts. Das Central schickt seinen Zustand, sobald die
+ *    Verbindung steht, und erst der schaltet ein.
+ *
+ * Frueher wurde beim Verbinden auf Verdacht eingeschaltet, weil das Central nach dem
+ * Aufwachen sein RGB_ON schon geschickt hatte, bevor die Verbindung stand. Das war
+ * falsch, sobald das Underglow des Centrals aus war (idle oder per &rgb_ug RGB_TOG):
+ * die rechte Haelfte leuchtete dann nach dem Einschalten, bis der Resync des Centrals
+ * sie nach bis zu zwei Minuten wieder ausschaltete.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/settings/settings.h>
 
 #include <zmk/event_manager.h>
 #include <zmk/events/split_peripheral_status_changed.h>
 #include <zmk/rgb_underglow.h>
+#include <zmk/split/bluetooth/peripheral.h>
 
 LOG_MODULE_REGISTER(dilemma_max_rgb_follow, CONFIG_ZMK_LOG_LEVEL);
 
@@ -35,12 +42,9 @@ static int rgb_split_follow_listener(const zmk_event_t *eh) {
         return ZMK_EV_EVENT_BUBBLE;
     }
 
-    LOG_DBG("Split-Link %s, Underglow %s", ev->connected ? "verbunden" : "getrennt",
-            ev->connected ? "an" : "aus");
+    LOG_DBG("Split-Link %s", ev->connected ? "verbunden, warte auf das Central" : "getrennt");
 
-    if (ev->connected) {
-        zmk_rgb_underglow_on();
-    } else {
+    if (!ev->connected) {
         zmk_rgb_underglow_off();
     }
 
@@ -49,3 +53,21 @@ static int rgb_split_follow_listener(const zmk_event_t *eh) {
 
 ZMK_LISTENER(dilemma_max_rgb_split_follow, rgb_split_follow_listener);
 ZMK_SUBSCRIPTION(dilemma_max_rgb_split_follow, zmk_split_peripheral_status_changed);
+
+#if IS_ENABLED(CONFIG_SETTINGS)
+/*
+ * Der Commit-Handler laeuft am Ende von settings_load(), also nachdem ZMK den gespeicherten
+ * Underglow-Zustand wiederhergestellt hat. Eigene Settings gibt es unter dem Namen nicht,
+ * der Eintrag ist nur der Haken dafuer.
+ */
+static int rgb_split_follow_settings_commit(void) {
+    if (!zmk_split_bt_peripheral_is_connected()) {
+        zmk_rgb_underglow_off();
+    }
+
+    return 0;
+}
+
+SETTINGS_STATIC_HANDLER_DEFINE(dilemma_max_rgb_follow, "dilemma/rgbfollow", NULL, NULL,
+                               rgb_split_follow_settings_commit, NULL);
+#endif // IS_ENABLED(CONFIG_SETTINGS)

@@ -28,7 +28,8 @@ config DILEMMA_MAX_RGB_SPLIT_SYNC
       die rechte Haelfte also dunkel, solange man links tippt.
 
       Ist die Option aktiv, schickt das Central bei jedem Wechsel zwischen aktiv und
-      idle das rgb_ug-Behavior mit RGB_ON bzw. RGB_OFF an alle Peripherals. Auf den
+      idle und sobald sich ein Peripheral verbindet das rgb_ug-Behavior mit RGB_ON
+      bzw. RGB_OFF an alle Peripherals. Auf den
       Peripherals gehoert dann CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE=n gesetzt,
       sonst schalten sie sich zusaetzlich selbst ab.
 
@@ -73,7 +74,8 @@ config DILEMMA_MAX_RGB_SPLIT_FOLLOW
       Weil das Peripheral nicht mehr selbst ueber sein Underglow entscheidet, bliebe
       der Strip an, sobald vom Central nichts mehr kommt - es ausgeschaltet ist, im
       Deep Sleep liegt oder ausser Reichweite. Mit dieser Option geht der Strip aus,
-      wenn die Split-Verbindung wegfaellt, und beim Verbinden wieder an.
+      wenn die Split-Verbindung wegfaellt, und bleibt nach dem Start aus. Eingeschaltet
+      wird er erst durch den Zustand, den das Central nach dem Verbinden schickt.
 
 config DILEMMA_MAX_STATUS_SCREEN
     bool "Eigenes nice!view-Layout: Akku, Verbindung, Modifier, Layer"
@@ -129,3 +131,17 @@ config DILEMMA_MAX_PERIPHERAL_CHARGE_DECODE
     help
       Gegenstueck zu CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT auf dem Central.
       Aus zu lassen, solange rechts eine Firmware ohne die Kodierung laeuft.
+
+config DILEMMA_MAX_BATTERY_FILTER
+    bool "Akkustand um den Spannungseinbruch durch das Underglow bereinigen"
+    default y
+    depends on DT_HAS_DILEMMA_BATTERY_FILTER_ENABLED
+    depends on ZMK_BATTERY_REPORTING
+    help
+      Treiber fuer den Knoten dilemma,battery-filter (src/battery_filter.c), der in
+      dilemma_max.dtsi als zmk,battery vor dem VDDH-Sensor des nice!nano sitzt.
+
+      ZMK misst nur, solange die Haelfte aktiv ist, also immer mit leuchtenden LEDs.
+      Deren Strom drueckt die Akkuspannung, und bei 7,5 mV pro Prozent wird daraus eine
+      Anzeige, die mit dem Underglow springt und viel zu frueh 0 % meldet. Der Treiber
+      lernt den Einbruch aus Messungen mit und ohne Underglow und rechnet ihn heraus.

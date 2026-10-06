@@ -43,6 +43,15 @@ draining it, the controller reports it as anti-touch, recalibrates with the
 finger present and then tracks a ghost image. Days of this project were spent
 chasing that as if it were a software bug.
 
+**A finger on the pad during calibration.** The controller takes a new baseline
+at power-on, three seconds later, and after ten seconds of continuous touch. A
+finger resting on the pad at that moment becomes part of the baseline, and once
+it lifts the spot reads as anti-touch and stops tracking. The chip's own
+anti-touch recalibration needs about 50 affected nodes and never fires for one
+finger, so the driver does it: anti-touch with no touch reported for 400 ms
+triggers a calibration. The second calibration after boot also waits until no
+finger is down. Each recovery is logged as `anti-touch without touch`.
+
 ---
 
 ## Repository layout
@@ -313,6 +322,31 @@ ZMK's activity state is local: a peripheral only sees its own key presses and
 went dark while typing on the left half. `src/rgb_sleep_blank.c` clears the
 strip synchronously before deep sleep, since WS2812 hold their last state once
 the controller stops sending.
+
+Without a split connection the right half keeps its underglow off, including
+right after power-on. The central sends its current state about a second after
+the right half connects, and only that switches the strip on. Switching it on
+at connect, as an earlier version did, lit the right half whenever it was
+powered on while the left half was idle.
+
+### Battery level
+
+ZMK measures the battery on the VDDH pin and maps it linearly, 3450 mV to 0 %
+and 4200 mV to 100 %, so 7.5 mV per percent. It only measures while a half is
+active, which is exactly when the LEDs are lit. Their current pulls the voltage
+down by an amount that depends on brightness, colour and effect, so the stock
+reading jumped around with the underglow and hit 0 % long before the battery
+was empty.
+
+`src/battery_filter.c` sits in front of the VDDH sensor as `zmk,battery`. It
+samples every 30 s on its own, also while idle, and sorts each sample by
+whether the underglow is on. Two neighbouring samples on either side of an
+on/off change give the voltage drop, which is then added back to every sample
+taken with the LEDs lit. The result is low-pass filtered and the percentage
+only moves in steps of two. The drop is learned again after every boot, so the
+reading can be a few percent low until the half has gone idle once.
+
+The filter never reports 0 %: that value means "not connected" on the display.
 
 Split connection latency is left at the ZMK default. Lowering it makes
 underglow commands arrive faster but forces the peripheral to listen three

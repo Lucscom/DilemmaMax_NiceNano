@@ -107,6 +107,14 @@ static inline bool is_t100_report(const struct device *dev, int report_id) {
 #define MXT_CLICK_RELEASE_MS 200 // Taste nach Tap so lange halten: neuer Finger in dieser Zeit = Drag
 #define MXT_STALE_CHECK_MS 50    // 0 Touches gemeldet: so lange auf die UP-Meldungen warten
 
+// Baseline mit aufliegendem Finger gemessen: nach dem Abheben meldet der Chip an der Stelle
+// Anti-Touch (Signal unter der Baseline) und keinen Touch. Liegt das so lange an, wird neu
+// kalibriert. Die Flaeche zaehlt Sensorknoten; ein einzelner Knoten kann Rauschen sein.
+#define MXT_ATCH_RECAL_AREA 2
+#define MXT_ATCH_RECAL_MS 400
+// Mindestabstand zwischen zwei solchen Kalibrierungen, damit daraus keine Schleife wird
+#define MXT_ATCH_RECAL_MIN_GAP_MS 2000
+
 // Momentum: nach dem Abheben laeuft das Scrollen mit abnehmender Geschwindigkeit aus
 #define MXT_MOMENTUM_TICK_MS 25
 // pro Tick x 3/4 (~halbiert nach ca. 60 ms). 15/16 und danach 7/8 liefen noch zu lange nach.
@@ -860,6 +868,17 @@ static void mxt_report_data(const struct device *dev) {
                 data->zero_touch_pending = true;
                 k_work_schedule(&data->stale_work, K_MSEC(MXT_STALE_CHECK_MS));
             }
+
+            // scraux Bit 2: data[4..5] = Anti-Touch-Flaeche. Ohne gemeldeten Touch heisst das,
+            // dass die Baseline nicht stimmt. Jeder Status, der das nicht mehr zeigt, nimmt
+            // den Verdacht zurueck.
+            uint16_t atch_area = msg.data[4] | (msg.data[5] << 8);
+            if (data->ready && msg.data[1] == 0 && atch_area >= MXT_ATCH_RECAL_AREA) {
+                // Laeuft die Wartezeit schon, ist das ein No-Op
+                k_work_schedule(&data->atch_work, K_MSEC(MXT_ATCH_RECAL_MS));
+            } else {
+                k_work_cancel_delayable(&data->atch_work);
+            }
         } else if (msg.report_id == data->t6_command_processor_report_id) {
             // T6-Status wie im QMK-Treiber dekodieren: zeigt, wann der Chip von sich aus
             // kalibriert (CAL) und ob Signalfehler/Overflow auftreten.
@@ -1365,11 +1384,49 @@ static void mxt_diag_work_cb(struct k_work *work) {
     k_work_schedule(dwork, K_MSEC(MXT_DIAG_PERIOD_MS));
 }
 
+/*
+ * Der Chip misst seine Baseline bei jeder Kalibrierung neu und kann dabei nicht wissen, ob
+ * ein Finger aufliegt: beim Einschalten, bei der zweiten Kalibrierung danach und wenn er
+ * sich nach 10 s Dauerberuehrung selbst neu kalibriert (T8 TCHAUTOCAL). Der Finger steckt
+ * dann in der Baseline. Solange er liegt, sieht der Chip an der Stelle nichts; hebt er ab,
+ * bleibt dort ein Loch, das als Anti-Touch gemeldet wird, und das Pad erkennt Beruehrungen
+ * in dem Bereich schlecht oder gar nicht.
+ *
+ * Die Anti-Touch-Kalibrierung des Chips (T8 ATCHCALTHR/ATCHFRCCALTHR = 50 Knoten) greift
+ * bei einem einzelnen Finger nicht, der deckt nur eine Handvoll Knoten ab. Deshalb hier:
+ * Anti-Touch ohne Touch ueber MXT_ATCH_RECAL_MS => neu kalibrieren.
+ */
+static void mxt_atch_work_cb(struct k_work *work) {
+    struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+    struct mxt_data *data = CONTAINER_OF(dwork, struct mxt_data, atch_work);
+    int64_t now = k_uptime_get();
+
+    if (data->active_mask != 0) {
+        return;
+    }
+    if (data->atch_recal_ms != 0 && now - data->atch_recal_ms < MXT_ATCH_RECAL_MIN_GAP_MS) {
+        k_work_schedule(dwork, K_MSEC(MXT_ATCH_RECAL_MIN_GAP_MS));
+        return;
+    }
+
+    data->atch_recal_ms = now;
+    int ret = mxt_calibrate(data->dev);
+    LOG_WRN("anti-touch without touch: baseline was taken with a finger down, T6 CALIBRATE "
+            "sent (ret=%d)", ret);
+}
+
 // Zweite Kalibrierung, wenn Stromversorgung, USB und BLE nach dem Boot ruhig sind.
 static void mxt_recal_work_cb(struct k_work *work) {
     struct k_work_delayable *dwork = k_work_delayable_from_work(work);
     struct mxt_data *data = CONTAINER_OF(dwork, struct mxt_data, recal_work);
     const struct mxt_config *config = data->dev->config;
+
+    // Nicht unter einem Finger kalibrieren, den der Chip gerade sieht
+    if (data->active_mask != 0) {
+        k_work_schedule(dwork, K_MSEC(500));
+        return;
+    }
+
     int ret = mxt_calibrate(data->dev);
     LOG_INF("delayed T6 CALIBRATE sent (ret=%d)", ret);
     if (config->diag_dump) {
@@ -1476,6 +1533,7 @@ static int mxt_init(const struct device *dev) {
     k_work_init_delayable(&data->click_release_work, mxt_click_release_cb);
     k_work_init_delayable(&data->stale_work, mxt_stale_work_cb);
     k_work_init_delayable(&data->recal_work, mxt_recal_work_cb);
+    k_work_init_delayable(&data->atch_work, mxt_atch_work_cb);
     k_work_init_delayable(&data->diag_work, mxt_diag_work_cb);
     k_work_init_delayable(&data->init_work, mxt_init_work_cb);
     k_work_schedule(&data->init_work, K_MSEC(MXT_INIT_FIRST_DELAY_MS));

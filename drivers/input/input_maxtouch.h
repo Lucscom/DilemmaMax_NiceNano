@@ -87,6 +87,10 @@ struct mxt_data {
     struct k_work work;
     struct k_work_delayable init_work;
     struct k_work_delayable recal_work;
+    // Anti-Touch ohne Finger: die Baseline wurde mit aufliegendem Finger gemessen, siehe
+    // mxt_atch_work_cb()
+    struct k_work_delayable atch_work;
+    int64_t atch_recal_ms;
     struct k_work_delayable diag_work;
     uint8_t matrix_x_size;
     uint8_t matrix_y_size;
