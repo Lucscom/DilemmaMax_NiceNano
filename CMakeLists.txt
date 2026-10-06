@@ -4,6 +4,20 @@
 # zephyr/module.yml). Die Quellen gehen direkt an das ZMK-Target "app", weil nur
 # dieses die ZMK-Header unter zmk/app/include im Include-Pfad hat.
 
+# maXTouch-Trackpadtreiber. Frueher ein eigenes Repo (philippkober/maxtouch-zephyr-module);
+# da praktisch der ganze Treiber ohnehin hier entstanden ist und upstream nichts liefert,
+# was wir nicht haben, liegt er jetzt direkt im Config-Repo. Er geht als Zephyr-Treiber
+# (zephyr_library_amend) in die Input-Bibliothek, nicht an das ZMK-Target "app".
+# include/dt-bindings/dilemma_max/gestures.h: Gesten-Codes, die Treiber (rechts) und
+# Input-Processor (links) teilen. Fuer den Devicetree ist include/ ueber dts_root bekannt.
+zephyr_include_directories(include)
+
+add_subdirectory(drivers)
+
 target_sources_ifdef(CONFIG_DILEMMA_MAX_RGB_SPLIT_SYNC app PRIVATE src/rgb_split_sync.c)
 target_sources_ifdef(CONFIG_DILEMMA_MAX_RGB_SPLIT_FOLLOW app PRIVATE src/rgb_split_follow.c)
 target_sources_ifdef(CONFIG_DILEMMA_MAX_RGB_SLEEP_BLANK app PRIVATE src/rgb_sleep_blank.c)
+target_sources_ifdef(CONFIG_DILEMMA_MAX_STATUS_SCREEN app PRIVATE src/status_screen.c)
+target_sources_ifdef(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT app PRIVATE src/peripheral_charge_report.c)
+target_sources_ifdef(CONFIG_DILEMMA_MAX_GESTURE_KEYS app PRIVATE src/gesture_keys.c)
+target_sources_ifdef(CONFIG_DILEMMA_MAX_BATTERY_FILTER app PRIVATE src/battery_filter.c)

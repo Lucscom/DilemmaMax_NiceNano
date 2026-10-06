@@ -43,6 +43,15 @@ draining it, the controller reports it as anti-touch, recalibrates with the
 finger present and then tracks a ghost image. Days of this project were spent
 chasing that as if it were a software bug.
 
+**A finger on the pad during calibration.** The controller takes a new baseline
+at power-on, three seconds later, and after ten seconds of continuous touch. A
+finger resting on the pad at that moment becomes part of the baseline, and once
+it lifts the spot reads as anti-touch and stops tracking. The chip's own
+anti-touch recalibration needs about 50 affected nodes and never fires for one
+finger, so the driver does it: anti-touch with no touch reported for 400 ms
+triggers a calibration. The second calibration after boot also waits until no
+finger is down. Each recovery is logged as `anti-touch without touch`.
+
 ---
 
 ## Repository layout
@@ -50,17 +59,21 @@ chasing that as if it were a software bug.
 ```
 boards/shields/dilemma_max/    shield definition, keymap, overlays
 config/                        west manifest and per-side Kconfig
-src/                           RGB split helpers compiled into the ZMK app
+src/                           RGB split helpers, the nice!view status screen, the
+                               charge reporting and the gesture key processor,
+                               compiled into the ZMK app
+drivers/input/                 the maXTouch trackpad driver, including all gestures
+dts/bindings/                  devicetree bindings for the driver and the processor
+include/dt-bindings/           gesture codes shared by driver, processor and devicetree
 Kconfig, CMakeLists.txt        make this repo a Zephyr module for those sources
 build.yaml                     GitHub Actions build matrix
 cirque_test/                   Arduino sketches used to bring the pad up
 ```
 
-The trackpad driver itself lives in a separate repository,
-[philippkober/maxtouch-zephyr-module](https://github.com/philippkober/maxtouch-zephyr-module),
-forked from george-norton's module and pulled in by `config/west.yml`. Changes
-to gestures or driver behaviour go there, changes to tuning values go into the
-right side overlay here.
+The trackpad driver started out in a separate repository
+(philippkober/maxtouch-zephyr-module, forked from george-norton's module) and
+now lives in `drivers/input/`. Changes to gestures or driver behaviour go
+there, changes to tuning values go into the right side overlay.
 
 ---
 
@@ -105,8 +118,10 @@ Which halves need flashing depends on what changed:
 
 | Changed file | Flash |
 |---|---|
-| `dilemma_max_right.overlay`, the driver module | right only |
-| `dilemma_max.dtsi`, `Kconfig.shield`, `dilemma_max.keymap` | both |
+| `dilemma_max_right.overlay`, `drivers/input/` | right only |
+| `src/gesture_keys.c` | left only |
+| `dilemma_max.dtsi` (including the gesture shortcuts), `Kconfig.shield`, `dilemma_max.keymap` | both |
+| `include/dt-bindings/dilemma_max/gestures.h` | both |
 | `config/dilemma_max_left.conf` and split parameters | both |
 
 ### USB logging
@@ -142,14 +157,16 @@ first one was the original reason nothing worked at all:
    events into HID reports.
 
 Cursor speed is the scaler on the listener in `dilemma_max.dtsi`
-(`&zip_xy_scaler 1 3` — a larger second number is slower). The logical
+(`&zip_xy_scaler 2 5` — a larger second number is slower). The logical
 resolution in `Kconfig.shield` is deliberately fine (2048 × 2438 counts, about
 48.8 counts/mm on both axes) so that the controller's own movement hysteresis
 and the scroll step do not become coarse.
 
 ### Gestures
 
-Implemented in the driver fork, not in ZMK:
+Implemented in `drivers/input/input_maxtouch.c`, not in ZMK. macOS accepts no
+precision touchpad from a third-party device, so everything is recognised in
+the firmware and sent as mouse events or key shortcuts:
 
 | Gesture | Action |
 |---|---|
@@ -157,16 +174,58 @@ Implemented in the driver fork, not in ZMK:
 | Tap | Left click |
 | Double tap | Double click |
 | Tap, then touch and move | Drag |
-| Two fingers moving | Scroll, with momentum after lift |
+| Two fingers moving in parallel | Scroll, one step per ~1.6 mm, with a short momentum after lift |
+| Two fingers moving apart / together | Zoom in / out, one step per ~3 mm (`Cmd` + keypad `+` / `-`) |
 | Two finger tap | Right click |
 | Two finger flick sideways | Mouse buttons 4/5 — page back/forward in Safari |
+| Three finger swipe left / right | Next / previous space (`Ctrl+→` / `Ctrl+←`) |
+| Three finger swipe up / down | Mission Control / App Exposé (`Ctrl+↑` / `Ctrl+↓`) |
 | Three finger tap | Middle click |
 
+Two fingers settle on scrolling or zooming once per touch, after about 0.8 mm
+of movement, so a gesture cannot flip between the two. A three finger swipe
+needs about 6 mm in one clear direction within 700 ms and fires once per
+touch. Rotation is not implemented.
+
 **Do not route trackpad events into key behaviours.** Mapping button codes to
-`&kp` shortcuts through `zip_button_behaviors` (for spaces switching, Mission
-Control and so on) crashes *both* halves as soon as the gesture fires, because
-the behaviour is invoked with a virtual key position derived from a split input
-device. Only real mouse buttons (`INPUT_BTN_0` … `INPUT_BTN_4`) are safe.
+`&kp` shortcuts through `zip_button_behaviors` crashed *both* halves as soon
+as the gesture fired. The likely reason: input processors run in the Zephyr
+input thread, whose stack stays at the Zephyr default of 512 bytes on the
+central (ZMK only raises it on peripherals), and a behaviour runs the whole
+keymap and HID chain synchronously in there.
+
+Shortcuts therefore take a separate path. The driver reports a recognised
+gesture as a key press and release with its own code from
+`include/dt-bindings/dilemma_max/gestures.h` (`DM_GESTURE_*`, above
+`INPUT_BTN_4`, so the listener never mistakes them for mouse buttons). The
+split link forwards type, code and value unchanged. On the left half the input
+processor `dilemma,input-processor-gesture-keys` (`src/gesture_keys.c`, first
+in the listener's `input-processors`) catches these codes, only queues the
+keycode in the input thread and raises press and release as
+`keycode_state_changed` events on the system work queue, 30 ms apart. No
+behaviour, key position or keymap is involved.
+
+The shortcut for each gesture is set on the `gesture_keys` node at the end of
+`dilemma_max.dtsi`:
+
+| Property | Meaning |
+|---|---|
+| `codes` | Gesture codes to catch (`DM_GESTURE_*`) |
+| `keycodes` | Shortcut per code, same order, ZMK keycodes such as `LC(RIGHT)` |
+
+Zoom uses `Cmd` with the keypad `+` and `-` keys, which produce the same
+characters whatever the host layout is. `Cmd+=` would only work with a US
+layout; on a German one that key is the acute accent. A layout branch can
+still override the node from its keymap:
+
+```
+&gesture_keys {
+    keycodes = <LC(RIGHT) LC(LEFT) LC(UP) LC(DOWN) LG(KP_PLUS) LG(KP_MINUS)>;
+};
+```
+
+`keys.h` has to be included after the matrix transform in `dilemma_max.dtsi`:
+its `RC(keycode)` would otherwise replace the transform's `RC(row, col)`.
 
 ### Driver behaviour worth knowing
 
@@ -187,7 +246,18 @@ device. Only real mouse buttons (`INPUT_BTN_0` … `INPUT_BTN_4`) are safe.
 - **Merged fingers.** Two fingers close together are reported as one touch.
   A contact counts as merged when its area reaches 24, or reaches 16 after
   growing by half since touch down, and then drives scrolling rather than the
-  cursor.
+  cursor. The growth check only applies to a finger that is already down; at
+  touch down only the absolute threshold counts, since the reference area
+  otherwise still belonged to the previous touch.
+- **Two-finger scrolling.** Both fingers collect their movement and are
+  evaluated once per message batch: the scroll step is the mean of both paths,
+  and only while they point the same way (positive dot product, lengths within
+  3:1). Pinching or rotating does not scroll.
+- **Stale fingers.** If the T100 status message reports zero touches while
+  fingers are still active, an UP got lost. The check waits for the next
+  status message or 50 ms, because the UPs of the same cycle arrive after the
+  status, and then resets all finger, gesture and cursor state and releases a
+  held button without any click.
 
 ### Tuning values
 
@@ -198,6 +268,46 @@ Dilemma 4×6. They belong together: threshold 20 only works alongside
 `charge_time = 1`, `gain = 10` and both measurement types enabled. Raising the
 touch threshold without those turns touch reporting off completely — a mistake
 made twice in this project.
+
+---
+
+## Display
+
+The nice!view on the left half runs a custom status screen
+(`src/status_screen.c`) instead of the widget that ships with the `nice_view`
+shield. Read upright, top to bottom:
+
+| Area | Shows |
+|---|---|
+| Top | Battery of both halves (`L`, `R`) as a small bar with percentage. A bolt after the left bar means USB is powering the left half. A small cross replaces the right bar while the right half is not connected (ZMK reports 0 % on disconnect and before the first report). Below: USB or a Wi-Fi style symbol for Bluetooth with the profile number, and the state `WIRED`, `ONLINE`, `WAITING` (paired host not connected) or `PAIRING` (profile is empty). |
+| Middle | Held modifiers `SHFT`, `CTRL`, `OPT`, `CMD` (left and right combined), each inverted while held. |
+| Bottom | Active layer as an inverted band, taken from `display-name` in the keymap. |
+
+ZMK v0.3 has no channel for the charging state of the peripheral: the right
+half only reports its battery level, as a plain BAS value the central
+subscribes to. `src/peripheral_charge_report.c` therefore encodes charging in
+the parity of that value — odd means charging — which costs one percent of
+accuracy and skews the level by at most 1. The right half reads USB power
+straight from the nRF52840 VBUS detection, because `CONFIG_ZMK_USB` is not
+allowed on a peripheral. Both halves have to be flashed together: with an older
+firmware on the right, the central reads every odd level as charging. The
+decoding side is `CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_DECODE`, which can be
+turned off in the meantime.
+
+Anything diagonal — the cross, the charging bolt — is set pixel by pixel with
+1×1 rectangles. `lv_canvas_draw_line` anti-aliases, and at one bit per pixel
+every partly covered pixel falls back to the background, which makes a 1 px
+diagonal invisible on this panel. ZMK also never raises `zmk_modifiers_state_changed`,
+so the modifier area listens to every keycode event and redraws only when the
+modifiers actually changed.
+
+It is switched on in `config/dilemma_max_left.conf` with
+`CONFIG_NICE_VIEW_WIDGET_STATUS=n`, which lets `CONFIG_DILEMMA_MAX_STATUS_SCREEN`
+default to on. That option also turns on
+`CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_FETCHING` so the central collects the
+right half's level. Like the stock widget, each block is drawn upright on a
+68×68 canvas and rotated 90°, because the 160×68 panel stands on its side; only
+the top 24 px of the bottom block fit on the panel.
 
 ---
 
@@ -212,6 +322,31 @@ ZMK's activity state is local: a peripheral only sees its own key presses and
 went dark while typing on the left half. `src/rgb_sleep_blank.c` clears the
 strip synchronously before deep sleep, since WS2812 hold their last state once
 the controller stops sending.
+
+Without a split connection the right half keeps its underglow off, including
+right after power-on. The central sends its current state about a second after
+the right half connects, and only that switches the strip on. Switching it on
+at connect, as an earlier version did, lit the right half whenever it was
+powered on while the left half was idle.
+
+### Battery level
+
+ZMK measures the battery on the VDDH pin and maps it linearly, 3450 mV to 0 %
+and 4200 mV to 100 %, so 7.5 mV per percent. It only measures while a half is
+active, which is exactly when the LEDs are lit. Their current pulls the voltage
+down by an amount that depends on brightness, colour and effect, so the stock
+reading jumped around with the underglow and hit 0 % long before the battery
+was empty.
+
+`src/battery_filter.c` sits in front of the VDDH sensor as `zmk,battery`. It
+samples every 30 s on its own, also while idle, and sorts each sample by
+whether the underglow is on. Two neighbouring samples on either side of an
+on/off change give the voltage drop, which is then added back to every sample
+taken with the LEDs lit. The result is low-pass filtered and the percentage
+only moves in steps of two. The drop is learned again after every boot, so the
+reading can be a few percent low until the half has gone idle once.
+
+The filter never reports 0 %: that value means "not connected" on the display.
 
 Split connection latency is left at the ZMK default. Lowering it makes
 underglow commands arrive faster but forces the peripheral to listen three

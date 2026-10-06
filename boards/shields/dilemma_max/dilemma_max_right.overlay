@@ -81,8 +81,9 @@
         retransmission_compensation_disable; // T80 aus
         // Chip misst im aktiven Zustand freilaufend statt alle 10 ms (255 = free run)
         active-acq-time-ms = <255>;
-        // ... faellt aber schon nach ca. 2 s ohne Beruehrung in den Ruhemodus (Einheit 200 ms)
-        active-to-idle-timeout-ms = <10>;
+        // ... und bleibt wie im QMK-Treiber 10 s aktiv, bevor er in den Ruhemodus faellt
+        // (Einheit 200 ms; 2 s waren zu kurz, jeder Idle-Wechsel stoert die Baseline)
+        active-to-idle-timeout-ms = <50>;
         // Diagnose: T37-Rohdaten ins Log (Referenzen einmal, Deltas alle 3s)
         // diag-dump;
         // swap-xy war falsch: Finger links-rechts bewegte den Cursor oben-unten

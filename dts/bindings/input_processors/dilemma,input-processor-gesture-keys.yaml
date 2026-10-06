@@ -1,0 +1,20 @@
+description: |
+  Dilemma Max: setzt Gesten-Codes des Trackpads (dt-bindings/dilemma_max/gestures.h) in
+  Tastenkuerzel um. Laeuft im Input-Listener der linken Haelfte. Das Kuerzel wird als
+  keycode_state_changed-Event auf der System-Workqueue ausgeloest, nicht ueber Behaviours.
+
+compatible: "dilemma,input-processor-gesture-keys"
+
+include: ip_zero_param.yaml
+
+properties:
+  codes:
+    type: array
+    required: true
+    description: Gesten-Codes (DM_GESTURE_*), die abgefangen werden
+  keycodes:
+    type: array
+    required: true
+    description: |
+      Kuerzel pro Code, gleiche Reihenfolge wie codes. ZMK-Keycodes aus
+      dt-bindings/zmk/keys.h, Modifier ueber LC(), LG() usw.

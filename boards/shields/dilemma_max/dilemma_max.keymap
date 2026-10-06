@@ -17,12 +17,34 @@
             // tap-ms must be > trigger-period-ms (16ms) so the msc tick fires at least once
             tap-ms = <25>;
         };
+
+        // Bluetooth-Profile auf NAV + 1..5: tippen waehlt das Profil, 3 s halten waehlt es und
+        // loescht seine Kopplung (&bt BT_CLR) -- danach wartet es auf einen neuen Rechner.
+        // Das Loeschen passiert sofort und laesst sich nicht abbrechen.
+        bt_sel_m: bt_sel_m {
+            compatible = "zmk,behavior-macro-one-param";
+            #binding-cells = <1>;
+            bindings = <&macro_param_1to2 &bt BT_SEL_CMD MACRO_PLACEHOLDER>;
+        };
+        bt_pair_m: bt_pair_m {
+            compatible = "zmk,behavior-macro-one-param";
+            #binding-cells = <1>;
+            bindings = <&macro_param_1to2 &bt BT_SEL_CMD MACRO_PLACEHOLDER>, <&bt BT_CLR>;
+        };
+        bt_ht: bt_ht {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "hold-preferred";
+            tapping-term-ms = <3000>;
+            bindings = <&bt_pair_m>, <&bt_sel_m>;
+        };
     };
 
     keymap {
         compatible = "zmk,keymap";
 
         default_layer {
+            display-name = "BASE";
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
             // │ ESC │ 1 │ 2 │ 3 │ 4 │ 5 │   │ 6 │ 7 │ 8 │ 9 │ 0 │  =  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
@@ -46,6 +68,7 @@
         };
 
         nav_layer {
+            display-name = "NAV";
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
             // │     │BT0│BT1│BT2│BT3│BT4│   │   │   │   │   │   │     │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
@@ -57,12 +80,13 @@
             // └─────┴───┼───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
             //           │   │   │   │   │   │   │   │   │
             //           └───┴───┴───┴───┘   └───┴───┴───┴───┘
-            // BT0-4 = Bluetooth Profile 0-4
+            // BT0-4 = Bluetooth Profile 0-4: tippen = waehlen, 3 s halten = waehlen und Kopplung
+            //         loeschen (Pairing-Modus fuer einen neuen Rechner)
             // FN    = Globe/Fn-Taste (Diktat)
             // MIS   = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
             bindings = <
-                &trans      &bt BT_SEL 0  &bt BT_SEL 1  &bt BT_SEL 2        &bt BT_SEL 3                        &bt BT_SEL 4  &trans  &trans    &trans    &trans     &trans  &trans
+                &trans      &bt_ht 0 0    &bt_ht 1 1    &bt_ht 2 2          &bt_ht 3 3                          &bt_ht 4 4    &trans  &trans    &trans    &trans     &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP    &trans     &trans  &trans
                 &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &trans        &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &trans  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD

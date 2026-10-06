@@ -1,0 +1,12 @@
+description: |
+  Dilemma Max: Akkusensor, der sich vor einen anderen setzt und dessen Spannung um den
+  Einbruch durch das Underglow bereinigt und glaettet (src/battery_filter.c). Wird als
+  zmk,battery eingetragen.
+
+compatible: "dilemma,battery-filter"
+
+properties:
+  source:
+    type: phandle
+    required: true
+    description: Der eigentliche Akkusensor, auf dem nice!nano v2 der Knoten vbatt
