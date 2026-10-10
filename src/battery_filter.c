@@ -40,6 +40,7 @@
 
 #include <stdlib.h>
 
+#include <dilemma_max/battery.h>
 #include <zmk/rgb_underglow.h>
 #include <zmk/workqueue.h>
 
@@ -236,12 +237,23 @@ static int battery_filter_channel_get(const struct device *dev, enum sensor_chan
         val->val2 = (data->filtered_mv % 1000) * 1000;
         return 0;
     case SENSOR_CHAN_GAUGE_STATE_OF_CHARGE:
-        val->val1 = data->state_of_charge;
+        // Auf der rechten Haelfte bekommt schon ZMK den kodierten Wert. Sonst schriebe es
+        // bei jeder Messung den rohen in den Battery Service, und ein ungerader Rohwert
+        // stuende auf dem Display als "laedt", bis ihn die Kodierung wieder ueberschreibt.
+        val->val1 = IS_ENABLED(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT)
+                        ? dilemma_max_charge_encode(data->state_of_charge)
+                        : data->state_of_charge;
         val->val2 = 0;
         return 0;
     default:
         return -ENOTSUP;
     }
+}
+
+static struct battery_filter_data battery_filter_data_0;
+
+uint8_t dilemma_max_battery_filter_level(void) {
+    return battery_filter_data_0.have_value ? battery_filter_data_0.state_of_charge : 0;
 }
 
 static const struct sensor_driver_api battery_filter_api = {
@@ -262,7 +274,6 @@ static int battery_filter_init(const struct device *dev) {
     return 0;
 }
 
-static struct battery_filter_data battery_filter_data_0;
 static const struct battery_filter_config battery_filter_config_0 = {
     .source = DEVICE_DT_GET(DT_INST_PHANDLE(0, source)),
 };
