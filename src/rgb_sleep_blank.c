@@ -6,7 +6,7 @@
  * Strip weiter und zieht den Akku leer.
  *
  * ZMK deckt das im Normalfall ueber CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE ab: der
- * Idle-Timeout (30 s) liegt weit vor dem Sleep-Timeout (15 min), der Strip ist zum
+ * Idle-Timeout (30 s) liegt weit vor dem Sleep-Timeout (5 min), der Strip ist zum
  * Poweroff also laengst schwarz. Auf dem Peripheral ist die Idle-Abschaltung hier
  * aber deaktiviert (config/dilemma_max_right.conf), weil das Central den Zustand
  * vorgibt - siehe src/rgb_split_sync.c. Damit kann die Seite ihren eigenen

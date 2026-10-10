@@ -5,6 +5,7 @@
 #include <string.h>
 #include <zephyr/init.h>
 #include <zephyr/input/input.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/sys/byteorder.h>
 
 #include <zephyr/logging/log.h>
@@ -1541,6 +1542,44 @@ static int mxt_init(const struct device *dev) {
     return 0;
 }
 
+#ifdef CONFIG_PM_DEVICE
+/*
+ * Vor dem Deep Sleep den CHG-Interrupt abschalten und den Pin trennen.
+ *
+ * Der Pegel-Interrupt laeuft auf dem nRF52 ueber den SENSE-Mechanismus des Pins, und der
+ * weckt den Controller auch aus System OFF. ZMK schaltet beim Einschlafen die 3,3-V-Schiene
+ * ab, an der das Pad haengt; CHG faellt damit auf low, also auf den aktiven Pegel. Ohne
+ * diesen Schritt wachte die rechte Haelfte sofort wieder auf und schlief praktisch nie.
+ *
+ * ZMK ruft die Suspend-Aktion aller Geraete direkt vor sys_poweroff() auf (zmk/app/src/pm.c).
+ * RESUME kommt nur, wenn das Einschlafen an einem anderen Geraet scheitert.
+ */
+static int mxt_pm_action(const struct device *dev, enum pm_device_action action) {
+    struct mxt_data *data = dev->data;
+    const struct mxt_config *config = dev->config;
+
+    switch (action) {
+    case PM_DEVICE_ACTION_SUSPEND:
+        k_timer_stop(&data->poll_timer);
+        gpio_pin_interrupt_configure_dt(&config->chg, GPIO_INT_DISABLE);
+        gpio_pin_configure_dt(&config->chg, GPIO_DISCONNECTED);
+        return 0;
+    case PM_DEVICE_ACTION_RESUME:
+        gpio_pin_configure_dt(&config->chg, GPIO_INPUT);
+        if (data->ready) {
+            if (data->irq_mode) {
+                gpio_pin_interrupt_configure_dt(&config->chg, GPIO_INT_LEVEL_ACTIVE);
+            }
+            k_timer_start(&data->poll_timer, K_MSEC(MXT_SAFETY_POLL_MS),
+                          K_MSEC(data->irq_mode ? MXT_SAFETY_POLL_MS : 8));
+        }
+        return 0;
+    default:
+        return -ENOTSUP;
+    }
+}
+#endif /* CONFIG_PM_DEVICE */
+
 #define MXT_INST(n)                                                                                     \
     static struct mxt_data mxt_data_##n;                                                                \
     static const struct mxt_config mxt_config_##n = {                                                   \
@@ -1580,7 +1619,8 @@ static int mxt_init(const struct device *dev) {
         .idle_syncs_per_x = DT_INST_PROP_OR(n, idle_syncs_per_x, 20),                                   \
         .retransmission_compensation_disable = DT_INST_PROP(n, retransmission_compensation_disable),    \
     };                                                                                                  \
-    DEVICE_DT_INST_DEFINE(n, mxt_init, NULL, &mxt_data_##n, &mxt_config_##n, POST_KERNEL,               \
-                          CONFIG_INPUT_INIT_PRIORITY, NULL);
+    PM_DEVICE_DT_INST_DEFINE(n, mxt_pm_action);                                                         \
+    DEVICE_DT_INST_DEFINE(n, mxt_init, PM_DEVICE_DT_INST_GET(n), &mxt_data_##n, &mxt_config_##n,        \
+                          POST_KERNEL, CONFIG_INPUT_INIT_PRIORITY, NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(MXT_INST)
