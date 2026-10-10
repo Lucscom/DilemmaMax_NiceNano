@@ -329,6 +329,29 @@ the right half connects, and only that switches the strip on. Switching it on
 at connect, as an earlier version did, lit the right half whenever it was
 powered on while the left half was idle.
 
+### 3.3 V rail off while idle
+
+The 51 LEDs draw their quiescent current even when dark, 20 to 35 mA per half,
+which was nearly all of an idle half's consumption. `src/rail_idle.c` switches
+the nice!nano's 3.3 V rail (P0.13) off once ZMK reports idle, 30 s after the
+last input on either half, and back on with the next key press. The left half
+keeps the rail on while it is on USB so the display stays readable.
+
+The right half follows the central: its own idle state only knows its own
+keys. The central sends the rail state together with the underglow state
+through the `railpwr` behavior. A key press on the right half switches its
+rail on at once, and without a split connection the rail is off.
+
+What this costs:
+
+- The nice!view is dark while idle and is redrawn completely afterwards.
+- The trackpad is unpowered while idle. It cannot wake the keyboard, and after
+  a key press it needs about a second to start and calibrate again. The driver
+  handles this through its PM suspend and resume actions.
+
+The pin is driven directly, not through ZMK's ext-power driver, which would
+store every change in the settings and bring a half back up with the rail off.
+
 ### Battery level
 
 ZMK measures the battery on the VDDH pin and maps it linearly, 3450 mV to 0 %

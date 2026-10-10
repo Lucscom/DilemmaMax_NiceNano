@@ -23,6 +23,15 @@
         source = <&vbatt>;
     };
 
+    behaviors {
+        // Schaltet die 3,3-V-Schiene im Idle, siehe src/rail_idle.c. Wird vom Central auf dem
+        // Peripheral aufgerufen, der Knotenname darf deshalb hoechstens 8 Zeichen haben.
+        rail_pwr: railpwr {
+            compatible = "dilemma,behavior-rail-power";
+            #binding-cells = <1>;
+        };
+    };
+
     kscan: kscan {
         compatible = "zmk,kscan-gpio-matrix";
         diode-direction = "row2col";

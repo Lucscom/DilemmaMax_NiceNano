@@ -43,6 +43,11 @@ LOG_MODULE_REGISTER(dilemma_max_rgb_sync, CONFIG_ZMK_LOG_LEVEL);
 
 // Das Peripheral sucht das Behavior ueber seinen Device-Namen (max. 8 Zeichen).
 #define RGB_UG_DEV DEVICE_DT_NAME(DT_NODELABEL(rgb_ug))
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_RAIL_IDLE)
+#define RAIL_PWR_DEV DEVICE_DT_NAME(DT_NODELABEL(rail_pwr))
+#else
+#define RAIL_PWR_DEV ""
+#endif
 
 // Kleiner Abstand zum Activity-Event, damit der Auto-Off-Listener von ZMK den
 // lokalen Zustand sicher schon gesetzt hat - die Listener-Reihenfolge ist
@@ -61,10 +66,10 @@ LOG_MODULE_REGISTER(dilemma_max_rgb_sync, CONFIG_ZMK_LOG_LEVEL);
 #define CONNECT_FIRST_DELAY K_SECONDS(1)
 #define CONNECT_RETRIES 5
 
-static void rgb_split_sync_send(bool on) {
+static void split_sync_invoke(const char *behavior_dev, uint32_t param1) {
     struct zmk_behavior_binding binding = {
-        .behavior_dev = RGB_UG_DEV,
-        .param1 = on ? RGB_ON_CMD : RGB_OFF_CMD,
+        .behavior_dev = behavior_dev,
+        .param1 = param1,
         .param2 = 0,
     };
     struct zmk_behavior_binding_event event = {
@@ -74,11 +79,27 @@ static void rgb_split_sync_send(bool on) {
     };
 
     for (uint8_t i = 0; i < ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT; i++) {
-        // Das rgb_ug-Behavior reagiert nur auf "pressed", daher state = true.
+        // Beide Behaviors reagieren nur auf "pressed", daher state = true.
         int err = zmk_split_central_invoke_behavior(i, &binding, event, true);
         if (err < 0) {
-            LOG_DBG("Underglow-Sync an Peripheral %d fehlgeschlagen (%d)", i, err);
+            LOG_DBG("Sync %s an Peripheral %d fehlgeschlagen (%d)", behavior_dev, i, err);
         }
+    }
+}
+
+static void rgb_split_sync_send(bool on) {
+    // Die 3,3-V-Schiene des Peripherals folgt dem Activity-State dieser Haelfte, siehe
+    // src/rail_idle.c. Reihenfolge: erst Strom, dann Licht - und umgekehrt.
+    bool rail_on = zmk_activity_get_state() == ZMK_ACTIVITY_ACTIVE;
+
+    if (IS_ENABLED(CONFIG_DILEMMA_MAX_RAIL_IDLE) && rail_on) {
+        split_sync_invoke(RAIL_PWR_DEV, 1);
+    }
+
+    split_sync_invoke(RGB_UG_DEV, on ? RGB_ON_CMD : RGB_OFF_CMD);
+
+    if (IS_ENABLED(CONFIG_DILEMMA_MAX_RAIL_IDLE) && !rail_on) {
+        split_sync_invoke(RAIL_PWR_DEV, 0);
     }
 }
 

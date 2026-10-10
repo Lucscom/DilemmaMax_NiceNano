@@ -901,6 +901,10 @@ static void mxt_report_data(const struct device *dev) {
 static void mxt_work_cb(struct k_work *work) {
     struct mxt_data *data = CONTAINER_OF(work, struct mxt_data, work);
     const struct mxt_config *config = data->dev->config;
+    // Noch aus der Zeit vor dem Abschalten in der Queue
+    if (data->suspended) {
+        return;
+    }
     mxt_report_data(data->dev);
     if (data->irq_mode) {
         // Pegel-Interrupt: CHG bleibt low solange Nachrichten anstehen, deshalb erst nach
@@ -1544,15 +1548,18 @@ static int mxt_init(const struct device *dev) {
 
 #ifdef CONFIG_PM_DEVICE
 /*
- * Vor dem Deep Sleep den CHG-Interrupt abschalten und den Pin trennen.
+ * SUSPEND: das Pad verliert gleich seine Versorgung. RESUME: sie ist wieder da.
  *
- * Der Pegel-Interrupt laeuft auf dem nRF52 ueber den SENSE-Mechanismus des Pins, und der
- * weckt den Controller auch aus System OFF. ZMK schaltet beim Einschlafen die 3,3-V-Schiene
- * ab, an der das Pad haengt; CHG faellt damit auf low, also auf den aktiven Pegel. Ohne
- * diesen Schritt wachte die rechte Haelfte sofort wieder auf und schlief praktisch nie.
+ * Zwei Aufrufer:
+ *  - src/rail_idle.c schaltet die 3,3-V-Schiene im Idle ab und beim naechsten Tastendruck
+ *    wieder ein. Nach dem Einschalten startet der Chip neu, deshalb laeuft bei RESUME die
+ *    komplette Initialisierung noch einmal, wie nach dem Booten.
+ *  - ZMK ruft SUSPEND fuer alle Geraete direkt vor dem Deep Sleep auf (zmk/app/src/pm.c).
  *
- * ZMK ruft die Suspend-Aktion aller Geraete direkt vor sys_poweroff() auf (zmk/app/src/pm.c).
- * RESUME kommt nur, wenn das Einschlafen an einem anderen Geraet scheitert.
+ * Der CHG-Interrupt muss in beiden Faellen aus sein: ohne Versorgung faellt CHG auf low,
+ * also auf den aktiven Pegel. Der Pegel-Interrupt laeuft auf dem nRF52 ueber den SENSE-
+ * Mechanismus des Pins, und der weckt den Controller auch aus System OFF - die rechte
+ * Haelfte wachte deshalb frueher sofort wieder auf und schlief praktisch nie.
  */
 static int mxt_pm_action(const struct device *dev, enum pm_device_action action) {
     struct mxt_data *data = dev->data;
@@ -1560,19 +1567,29 @@ static int mxt_pm_action(const struct device *dev, enum pm_device_action action)
 
     switch (action) {
     case PM_DEVICE_ACTION_SUSPEND:
+        data->suspended = true;
+        data->ready = false;
         k_timer_stop(&data->poll_timer);
         gpio_pin_interrupt_configure_dt(&config->chg, GPIO_INT_DISABLE);
         gpio_pin_configure_dt(&config->chg, GPIO_DISCONNECTED);
+        k_work_cancel_delayable(&data->init_work);
+        k_work_cancel_delayable(&data->recal_work);
+        k_work_cancel_delayable(&data->atch_work);
+        k_work_cancel_delayable(&data->diag_work);
+        k_work_cancel_delayable(&data->stale_work);
+        data->zero_touch_pending = false;
+        // Ein Finger, der gerade aufliegt, bekaeme sein Abheben nie gemeldet
+        if (data->active_mask != 0) {
+            mxt_reset_touches(dev);
+        }
+        mxt_momentum_stop(data);
         return 0;
     case PM_DEVICE_ACTION_RESUME:
+        data->suspended = false;
+        data->irq_mode = false;
+        data->init_attempts = 0;
         gpio_pin_configure_dt(&config->chg, GPIO_INPUT);
-        if (data->ready) {
-            if (data->irq_mode) {
-                gpio_pin_interrupt_configure_dt(&config->chg, GPIO_INT_LEVEL_ACTIVE);
-            }
-            k_timer_start(&data->poll_timer, K_MSEC(MXT_SAFETY_POLL_MS),
-                          K_MSEC(data->irq_mode ? MXT_SAFETY_POLL_MS : 8));
-        }
+        k_work_schedule(&data->init_work, K_MSEC(MXT_INIT_FIRST_DELAY_MS));
         return 0;
     default:
         return -ENOTSUP;
