@@ -31,6 +31,17 @@
             #binding-cells = <1>;
             bindings = <&macro_param_1to2 &bt BT_SEL_CMD MACRO_PLACEHOLDER>, <&bt BT_CLR>;
         };
+        // Rechte Shift-Taste auf Ä. "balanced" statt des hold-preferred von &mt: Shift gilt
+        // erst, wenn waehrend des Haltens eine andere Taste gedrueckt UND wieder losgelassen
+        // wird (oder nach 200 ms). Beim schnellen Tippen ueberlappen sich Ä und der naechste
+        // Buchstabe nur ("waehrend"), das bleibt damit ein Ä.
+        shift_ae: shift_ae {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            bindings = <&kp>, <&kp>;
+        };
         bt_ht: bt_ht {
             compatible = "zmk,behavior-hold-tap";
             #binding-cells = <2>;
@@ -51,20 +62,20 @@
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │ TAB │ Q │ W │ E │ R │ T │   │ Z │ U │ I │ O │ P │  Ü  │
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │LSFT │ A │ S │ D │ F │ G │   │ H │ J │ K │ L │ Ö │  Ä  │
+            // │LSFT │ A │ S │ D │ F │ G │   │ H │ J │ K │ L │ Ö │Ä/SFT│
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
-            // │LCTL │ Y │ X │ C │ V │ B │   │ N │ M │ , │ . │ - │#/SFT│
+            // │LCTL │ Y │ X │ C │ V │ B │   │ N │ M │ , │ . │ - │  #  │
             // └─────┴───┼───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
             //           │MUT│ALT│GUI│MO1│   │BSP│SPC│RET│C_PP│
             //           └───┴───┴───┴───┘   └───┴───┴───┴────┘
-            // # ganz rechts unten: tippen = #, halten = rechte Shift-Taste (&mt, 200 ms)
+            // Ä: tippen = Ä, halten = rechte Shift-Taste (&shift_ae)
             // Hinweis: Z/Y und Ö/Ä/Ü werden vom deutschen OS-Layout korrekt interpretiert
             // SEMI → Ö, SQT → Ä, LBKT → Ü (per deutschem HID-Mapping)
             bindings = <
                 &kp ESC    &kp N1  &kp N2  &kp N3    &kp N4   &kp N5               &kp N6   &kp N7   &kp N8     &kp N9   &kp N0    &kp MINUS
                 &kp TAB    &kp Q   &kp W   &kp E     &kp R    &kp T                &kp Y    &kp U    &kp I      &kp O    &kp P     &kp LBKT
-                &kp LSHFT  &kp A   &kp S   &kp D     &kp F    &kp G                &kp H    &kp J    &kp K      &kp L    &kp SEMI  &kp SQT
-                &kp LCTRL  &kp Z   &kp X   &kp C     &kp V    &kp B                &kp N    &kp M    &kp COMMA  &kp DOT  &kp FSLH  &mt RSHFT BSLH
+                &kp LSHFT  &kp A   &kp S   &kp D     &kp F    &kp G                &kp H    &kp J    &kp K      &kp L    &kp SEMI  &shift_ae RSHFT SQT
+                &kp LCTRL  &kp Z   &kp X   &kp C     &kp V    &kp B                &kp N    &kp M    &kp COMMA  &kp DOT  &kp FSLH  &kp BSLH
                                   &kp C_MUTE &kp LALT &kp LGUI &mo 1      &kp BSPC &kp SPACE &kp RET &kp C_PP
             >;
 
