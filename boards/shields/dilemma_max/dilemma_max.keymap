@@ -7,6 +7,7 @@
 #include <dt-bindings/zmk/pointing.h>
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/rgb.h>
+#include <dt-bindings/dilemma_max/menu.h>
 
 / {
     behaviors {
@@ -16,6 +17,13 @@
             bindings = <&msc>, <&msc>;
             // tap-ms must be > trigger-period-ms (16ms) so the msc tick fires at least once
             tap-ms = <25>;
+        };
+
+        // Linker Encoder im Einstellungsmenue: drehen waehlt den Eintrag
+        menu_enc: menu_enc {
+            compatible = "zmk,behavior-sensor-rotate-var";
+            #sensor-binding-cells = <2>;
+            bindings = <&menu>, <&menu>;
         };
 
         // Bluetooth-Profile auf NAV + 1..5: tippen waehlt das Profil, 3 s halten waehlt es und
@@ -100,16 +108,34 @@
             // FN    = Globe/Fn-Taste (Diktat)
             // MIS   = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
+            // Encoder druecken (Daumenreihe ganz links) = Einstellungsmenue oeffnen
             bindings = <
                 &trans      &bt_ht 0 0    &bt_ht 1 1    &bt_ht 2 2          &bt_ht 3 3                          &bt_ht 4 4  &trans  &trans    &trans    &trans     &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP   &trans     &kp RBKT  &trans
                 &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &kp LS(NUBS)  &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &kp NUBS  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD
-                            &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &trans
+                            &menu DM_MENU_OPEN  &trans        &trans               &trans                              &trans        &trans  &trans    &trans
             >;
 
             // Left encoder: volume | Right encoder: horizontal scroll (Maussimulation)
             sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_LEFT SCRL_RIGHT>;
+        };
+
+        // Layer DM_MENU_LAYER (2): aktiv, solange das Einstellungsmenue auf dem Display offen
+        // ist. Oeffnen: NAV halten und den linken Encoder druecken. Dann: drehen = Eintrag
+        // waehlen, druecken = Wert weiterschalten, EXIT oder 20 s Pause = schliessen.
+        // Alle anderen Tasten bleiben, wie sie sind.
+        menu_layer {
+            display-name = "MENU";
+            bindings = <
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                        &menu DM_MENU_SELECT  &trans  &trans  &trans      &trans  &trans  &trans  &trans
+            >;
+
+            sensor-bindings = <&menu_enc DM_MENU_UP DM_MENU_DOWN &scroll_encoder SCRL_DOWN SCRL_UP>;
         };
     };
 };

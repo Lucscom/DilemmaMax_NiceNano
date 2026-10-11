@@ -35,6 +35,10 @@
 
 #include <dt-bindings/zmk/modifiers.h>
 
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+#include <dilemma_max/menu.h>
+#endif
+
 #define BLOCK_SIZE 68
 
 #define COLOR_BG                                                                                   \
@@ -185,9 +189,68 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
     lv_canvas_draw_text(canvas, 40, y + 1, BLOCK_SIZE - 40, &value_dsc, value);
 }
 
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+/*
+ * Einstellungsmenue (src/menu.c): solange es offen ist, ersetzt es den oberen und den
+ * mittleren Block. Drei Eintraege pro Block, je 22 px: Name links, Wert rechts darunter,
+ * der gewaehlte Eintrag invertiert. Der untere Block zeigt weiter den Layer, also "MENU".
+ */
+#define MENU_ROWS_PER_BLOCK 3
+#define MENU_ROW_HEIGHT 22
+
+static void draw_menu(lv_obj_t *canvas, lv_color_t cbuf[], uint8_t first_item) {
+    lv_draw_rect_dsc_t bg;
+    init_rect(&bg, COLOR_BG);
+    lv_draw_rect_dsc_t fg;
+    init_rect(&fg, COLOR_FG);
+
+    lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
+
+    for (uint8_t row = 0; row < MENU_ROWS_PER_BLOCK; row++) {
+        uint8_t item = first_item + row;
+        if (item >= DILEMMA_MAX_MENU_ITEM_COUNT) {
+            break;
+        }
+
+        char label[9];
+        char value[9];
+        dilemma_max_menu_item_text(item, label, sizeof(label), value, sizeof(value));
+
+        bool selected = item == dilemma_max_menu_cursor();
+        lv_coord_t y = row * MENU_ROW_HEIGHT + 1;
+
+        lv_draw_label_dsc_t label_dsc;
+        init_label(&label_dsc, selected ? COLOR_BG : COLOR_FG, &lv_font_unscii_8,
+                   LV_TEXT_ALIGN_LEFT);
+        lv_draw_label_dsc_t value_dsc;
+        init_label(&value_dsc, selected ? COLOR_BG : COLOR_FG, &lv_font_unscii_8,
+                   LV_TEXT_ALIGN_RIGHT);
+
+        if (selected) {
+            lv_canvas_draw_rect(canvas, 0, y, BLOCK_SIZE, MENU_ROW_HEIGHT - 1, &fg);
+        }
+        lv_canvas_draw_text(canvas, 2, y + 2, BLOCK_SIZE - 4, &label_dsc, label);
+        lv_canvas_draw_text(canvas, 2, y + 12, BLOCK_SIZE - 4, &value_dsc, value);
+    }
+
+    rotate_canvas(canvas, cbuf);
+}
+
+static bool menu_is_open(void) { return dilemma_max_menu_is_open(); }
+#else
+static bool menu_is_open(void) { return false; }
+#endif
+
 static void draw_top(void) {
     lv_obj_t *canvas = top_canvas;
     const struct output_state *out = &state.output;
+
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+    if (menu_is_open()) {
+        draw_menu(canvas, top_cbuf, 0);
+        return;
+    }
+#endif
 
     lv_draw_rect_dsc_t bg;
     init_rect(&bg, COLOR_BG);
@@ -263,6 +326,13 @@ static void draw_mod(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, lv_coord_t w,
 static void draw_middle(void) {
     lv_obj_t *canvas = middle_canvas;
     zmk_mod_flags_t mods = state.mods.mods;
+
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+    if (menu_is_open()) {
+        draw_menu(canvas, middle_cbuf, MENU_ROWS_PER_BLOCK);
+        return;
+    }
+#endif
 
     lv_draw_rect_dsc_t bg;
     init_rect(&bg, COLOR_BG);
@@ -429,6 +499,26 @@ static struct layer_state layer_get_state(const zmk_event_t *eh) {
 
 ZMK_DISPLAY_WIDGET_LISTENER(layer_status, struct layer_state, layer_update_cb, layer_get_state)
 ZMK_SUBSCRIPTION(layer_status, zmk_layer_state_changed);
+
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+// Menue geoeffnet, geschlossen oder veraendert: beide Bloecke neu, auf der Display-Workqueue
+static void menu_redraw_work_cb(struct k_work *work) {
+    if (top_canvas == NULL || middle_canvas == NULL) {
+        return;
+    }
+    draw_top();
+    draw_middle();
+    middle_canvas_drawn = true;
+}
+
+static K_WORK_DEFINE(menu_redraw_work, menu_redraw_work_cb);
+
+void dilemma_max_status_screen_menu_changed(void) {
+    if (zmk_display_is_initialized()) {
+        k_work_submit_to_queue(zmk_display_work_q(), &menu_redraw_work);
+    }
+}
+#endif
 
 static lv_obj_t *create_block(lv_obj_t *parent, lv_color_t cbuf[], lv_coord_t x_ofs) {
     lv_obj_t *canvas = lv_canvas_create(parent);

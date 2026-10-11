@@ -6,15 +6,17 @@
  * zusammen 20 bis 35 mA - das war fast der gesamte Verbrauch einer wachen, unbenutzten
  * Haelfte. Der Controller haengt nicht an der Schiene, Tasten und Funk laufen also weiter.
  *
- * Central (links): Schiene aus, sobald ZMK idle meldet (CONFIG_ZMK_IDLE_TIMEOUT, 30 s ohne
- * Eingabe auf einer der Haelften), und wieder an beim naechsten Tastendruck. Haengt die
- * Haelfte am USB-Kabel, bleibt die Schiene an, damit das Display lesbar bleibt.
+ * Central (links): wann die Schiene aus- und wieder angeht, entscheidet src/power.c nach
+ * der im Menue eingestellten Zeit. Haengt die Haelfte am USB-Kabel, bleibt sie an, damit
+ * das Display lesbar bleibt.
  *
  * Peripheral (rechts): folgt dem Central, das seinen Zustand zusammen mit dem Underglow
- * schickt (src/rgb_split_sync.c ruft dafuer das Behavior unten auf). Die eigene Idle-
- * Erkennung taugt dafuer nicht, sie sieht nur die Tasten der rechten Haelfte. Zusaetzlich:
+ * schickt (src/rgb_split_sync.c ruft dafuer das Behavior unten auf). Eine eigene Idle-
+ * Erkennung taugt dafuer nicht, sie saehe nur die Tasten der rechten Haelfte. Zusaetzlich:
  *  - ein eigener Tastendruck schaltet sofort ein, ohne auf das Central zu warten,
- *  - ohne Split-Verbindung ist die Schiene aus, beim Verbinden geht sie an.
+ *  - ohne Split-Verbindung ist die Schiene aus, beim Verbinden geht sie an,
+ *  - in den Deep Sleep geht die Haelfte auf Kommando des Centrals, oder von selbst, wenn
+ *    sie zwei Minuten lang keine Verbindung hat.
  *
  * Was mit der Schiene ausgeht und wieder anlaufen muss:
  *  - Trackpad: der Treiber wird per PM SUSPEND stillgelegt und initialisiert den Chip bei
@@ -38,10 +40,14 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/init.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/sys/poweroff.h>
 
+#include <dilemma_max/power.h>
 #include <drivers/behavior.h>
 #include <zmk/activity.h>
+#include <zmk/pm.h>
 #include <zmk/behavior.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/activity_state_changed.h>
@@ -115,51 +121,65 @@ static void rail_work_cb(struct k_work *work) {
 
 static K_WORK_DELAYABLE_DEFINE(rail_work, rail_work_cb);
 
-static void rail_set(bool on) {
+void dilemma_max_rail_set(bool on) {
     rail_wanted = on;
     k_work_reschedule(&rail_work, on ? K_NO_WAIT : RAIL_OFF_DELAY);
 }
 
-#if !IS_ENABLED(CONFIG_ZMK_SPLIT) || IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+/*
+ * Deep Sleep, so wie ihn ZMK ausloest (app/src/activity.c): SLEEP-Event fuer alle, die
+ * vorher aufraeumen muessen, Geraete stilllegen, abschalten. ZMKs eigener Timeout steht auf
+ * 24 h; wann geschlafen wird, entscheidet src/power.c auf dem Central.
+ */
+void dilemma_max_sleep_now(void) {
+    raise_zmk_activity_state_changed(
+        (struct zmk_activity_state_changed){.state = ZMK_ACTIVITY_SLEEP});
 
-#if IS_ENABLED(CONFIG_ZMK_USB)
-#include <zmk/events/usb_conn_state_changed.h>
+    if (zmk_pm_suspend_devices() < 0) {
+        LOG_ERR("Failed to suspend all the devices");
+        zmk_pm_resume_devices();
+        return;
+    }
+
+    sys_poweroff();
+}
+
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+
+#include <zmk/events/split_peripheral_status_changed.h>
+
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
 #include <zmk/usb.h>
 #endif
 
-static bool usb_powered(void) {
-#if IS_ENABLED(CONFIG_ZMK_USB)
-    return zmk_usb_is_powered();
-#else
-    return false;
-#endif
-}
+// Ohne Central gibt es niemanden, der diese Haelfte schlafen schickt
+#define ORPHAN_SLEEP_DELAY K_SECONDS(120)
+// Kurz warten, damit das Kommando noch quittiert wird
+#define COMMAND_SLEEP_DELAY K_MSEC(200)
 
-static int rail_idle_listener(const zmk_event_t *eh) {
-    // Beim Deep Sleep schaltet der ext_power-Treiber selbst ab
-    if (zmk_activity_get_state() != ZMK_ACTIVITY_SLEEP) {
-        rail_set(zmk_activity_get_state() == ZMK_ACTIVITY_ACTIVE || usb_powered());
+static void sleep_work_cb(struct k_work *work) {
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
+    // Wie ZMK: am Kabel wird nicht geschlafen (und das USB-Log bleibt erreichbar)
+    if (zmk_usb_is_powered()) {
+        return;
     }
-
-    return ZMK_EV_EVENT_BUBBLE;
+#endif
+    dilemma_max_sleep_now();
 }
 
-ZMK_LISTENER(dilemma_max_rail_idle, rail_idle_listener);
-ZMK_SUBSCRIPTION(dilemma_max_rail_idle, zmk_activity_state_changed);
-#if IS_ENABLED(CONFIG_ZMK_USB)
-ZMK_SUBSCRIPTION(dilemma_max_rail_idle, zmk_usb_conn_state_changed);
-#endif
-
-#else /* Peripheral */
-
-#include <zmk/events/split_peripheral_status_changed.h>
+static K_WORK_DELAYABLE_DEFINE(sleep_work, sleep_work_cb);
 
 static int rail_idle_listener(const zmk_event_t *eh) {
     const struct zmk_split_peripheral_status_changed *status =
         as_zmk_split_peripheral_status_changed(eh);
 
     if (status != NULL) {
-        rail_set(status->connected);
+        dilemma_max_rail_set(status->connected);
+        if (status->connected) {
+            k_work_cancel_delayable(&sleep_work);
+        } else {
+            k_work_reschedule(&sleep_work, ORPHAN_SLEEP_DELAY);
+        }
         return ZMK_EV_EVENT_BUBBLE;
     }
 
@@ -168,7 +188,7 @@ static int rail_idle_listener(const zmk_event_t *eh) {
     // Nur einschalten. Ausgeschaltet wird auf Kommando des Centrals: diese Haelfte ist auch
     // dann "idle", wenn gerade links getippt wird.
     if (activity != NULL && activity->state == ZMK_ACTIVITY_ACTIVE) {
-        rail_set(true);
+        dilemma_max_rail_set(true);
     }
 
     return ZMK_EV_EVENT_BUBBLE;
@@ -178,15 +198,38 @@ ZMK_LISTENER(dilemma_max_rail_idle, rail_idle_listener);
 ZMK_SUBSCRIPTION(dilemma_max_rail_idle, zmk_activity_state_changed);
 ZMK_SUBSCRIPTION(dilemma_max_rail_idle, zmk_split_peripheral_status_changed);
 
-#endif
+// Nach dem Start ist noch nichts verbunden, und ein "getrennt" kommt dann nie
+static int rail_idle_init(void) {
+    k_work_reschedule(&sleep_work, ORPHAN_SLEEP_DELAY);
+    return 0;
+}
+
+SYS_INIT(rail_idle_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
+
+#endif /* Peripheral */
 
 /*
- * Behavior, ueber das das Central die Schiene des Peripherals schaltet: param1 = 1 an,
- * 0 aus. Nicht fuer die Keymap gedacht.
+ * Behavior, ueber das das Central diese Haelfte schaltet: param1 ist DILEMMA_MAX_RAIL_OFF,
+ * _ON oder _SLEEP. Nicht fuer die Keymap gedacht.
  */
 static int rail_power_binding_pressed(struct zmk_behavior_binding *binding,
                                       struct zmk_behavior_binding_event event) {
-    rail_set(binding->param1 != 0);
+    switch (binding->param1) {
+    case DILEMMA_MAX_RAIL_OFF:
+        dilemma_max_rail_set(false);
+        break;
+    case DILEMMA_MAX_RAIL_ON:
+        dilemma_max_rail_set(true);
+        break;
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
+    case DILEMMA_MAX_RAIL_SLEEP:
+        k_work_reschedule(&sleep_work, COMMAND_SLEEP_DELAY);
+        break;
+#endif
+    default:
+        break;
+    }
+
     return ZMK_BEHAVIOR_OPAQUE;
 }
 

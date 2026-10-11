@@ -151,7 +151,7 @@ config DILEMMA_MAX_RAIL_IDLE
     default y
     depends on DT_HAS_DILEMMA_BEHAVIOR_RAIL_POWER_ENABLED
     depends on DT_HAS_ZMK_EXT_POWER_GENERIC_ENABLED
-    depends on PM_DEVICE
+    depends on PM_DEVICE && ZMK_SLEEP
     help
       Schaltet die geschaltete 3,3-V-Schiene des nice!nano ab, sobald 30 s nichts
       eingegeben wurde (CONFIG_ZMK_IDLE_TIMEOUT), und beim naechsten Tastendruck wieder
@@ -180,3 +180,26 @@ config DILEMMA_MAX_CHARGE_CURRENT_MA
     depends on DILEMMA_MAX_BATTERY_FILTER
     help
       Der Ladechip des nice!nano v2 laedt mit 100 mA.
+
+config DILEMMA_MAX_POWER
+    bool "Einstellbare Zeiten fuer Beleuchtung, 3,3-V-Schiene und Deep Sleep"
+    default y
+    depends on DILEMMA_MAX_RAIL_IDLE && DILEMMA_MAX_RGB_SPLIT_SYNC
+    depends on ZMK_POINTING && SETTINGS
+    help
+      Eigene Uhr seit der letzten Eingabe auf dem Central (src/power.c), mit drei Zeiten,
+      die sich zur Laufzeit aendern lassen und in den Settings liegen. Ersetzt ZMKs
+      einkompilierte Zeiten: dafuer gehoeren CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE=n
+      und ein sehr langer CONFIG_ZMK_IDLE_SLEEP_TIMEOUT gesetzt, auf beiden Haelften.
+
+      Die rechte Haelfte wird vom Central kommandiert, auch in den Deep Sleep.
+
+config DILEMMA_MAX_MENU
+    bool "Einstellungsmenue auf dem nice!view"
+    default y
+    depends on DT_HAS_DILEMMA_BEHAVIOR_MENU_ENABLED
+    depends on DILEMMA_MAX_POWER && DILEMMA_MAX_STATUS_SCREEN
+    help
+      Menue fuer die Zeiten aus CONFIG_DILEMMA_MAX_POWER, bedient mit dem linken Encoder
+      ueber das Behavior &menu (src/menu.c). Die Keymap braucht dafuer einen eigenen
+      Layer, siehe DM_MENU_LAYER in dt-bindings/dilemma_max/menu.h.

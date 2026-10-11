@@ -344,6 +344,10 @@ uint8_t dilemma_max_battery_filter_level(void) {
     return battery_filter_data_0.have_value ? battery_filter_data_0.state_of_charge : 0;
 }
 
+int32_t dilemma_max_battery_filter_mv(void) {
+    return battery_filter_data_0.have_value ? battery_filter_data_0.filtered_mv : 0;
+}
+
 static const struct sensor_driver_api battery_filter_api = {
     .sample_fetch = battery_filter_sample_fetch,
     .channel_get = battery_filter_channel_get,

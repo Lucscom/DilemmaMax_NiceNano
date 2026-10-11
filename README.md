@@ -329,12 +329,39 @@ the right half connects, and only that switches the strip on. Switching it on
 at connect, as an earlier version did, lit the right half whenever it was
 powered on while the left half was idle.
 
+### Settings menu and power timing
+
+ZMK's idle and sleep timeouts are compiled in. `src/power.c` on the left half
+runs its own clock since the last input instead (keys of both halves, encoders,
+trackpad) and applies three timeouts that can be changed on the display:
+
+| Entry | What happens after that time without input | Values |
+|---|---|---|
+| `LIGHT` | underglow off on both halves | 10 s, 30 s, 1, 2, 5 min, never |
+| `POWER` | 3.3 V rail off: LEDs unpowered, display dark, trackpad off | 30 s, 1, 2, 5, 10 min, never |
+| `SLEEP` | deep sleep on both halves | 1, 2, 5, 10, 30 min, never |
+| `BATT` | shows the measured voltage of the left half | |
+
+Defaults are 30 s, 30 s and 5 min. The values are stored in the settings.
+
+To open the menu, hold NAV and press the left encoder. Turning selects an
+entry, pressing steps its value, `EXIT` or 20 s without input closes it. While
+it is open the keymap's layer 2 (`MENU`) is active, where the encoder is bound
+to the `&menu` behavior from `src/menu.c`; nothing is intercepted and all other
+keys keep working.
+
+The right half has no clock of its own. The left half commands its underglow,
+its rail and its deep sleep, because only the central sees the input of both
+halves. Without a split connection for two minutes the right half goes to sleep
+by itself. ZMK's own sleep timeout is set to 24 h and its idle underglow
+switch-off is disabled on both halves.
+
 ### 3.3 V rail off while idle
 
 The 51 LEDs draw their quiescent current even when dark, 20 to 35 mA per half,
 which was nearly all of an idle half's consumption. `src/rail_idle.c` switches
-the nice!nano's 3.3 V rail (P0.13) off once ZMK reports idle, 30 s after the
-last input on either half, and back on with the next key press. The left half
+the nice!nano's 3.3 V rail (P0.13) off after the `POWER` time from the menu
+above and back on with the next key press. The left half
 keeps the rail on while it is on USB so the display stays readable.
 
 The right half follows the central: its own idle state only knows its own

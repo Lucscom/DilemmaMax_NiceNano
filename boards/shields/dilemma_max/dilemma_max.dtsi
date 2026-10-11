@@ -24,10 +24,17 @@
     };
 
     behaviors {
-        // Schaltet die 3,3-V-Schiene im Idle, siehe src/rail_idle.c. Wird vom Central auf dem
+        // Schaltet die 3,3-V-Schiene und schickt die Haelfte schlafen, siehe src/rail_idle.c. Wird vom Central auf dem
         // Peripheral aufgerufen, der Knotenname darf deshalb hoechstens 8 Zeichen haben.
         rail_pwr: railpwr {
             compatible = "dilemma,behavior-rail-power";
+            #binding-cells = <1>;
+        };
+
+        // Einstellungsmenue auf dem nice!view, siehe src/menu.c. Parameter: DM_MENU_* aus
+        // dt-bindings/dilemma_max/menu.h. Laeuft nur auf der linken Haelfte.
+        menu: menu {
+            compatible = "dilemma,behavior-menu";
             #binding-cells = <1>;
         };
     };
