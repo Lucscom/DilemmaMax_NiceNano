@@ -184,7 +184,7 @@ static int battery_filter_sample(const struct device *dev) {
     }
     data->have_value = true;
 
-    LOG_DBG("Akku %d mV (%s), Einbruch %d mV, gefiltert %d mV => %d%%", mv,
+    LOG_INF("Akku %d mV (%s), Einbruch %d mV, gefiltert %d mV => %d%%", mv,
             loaded ? "Underglow an" : "Underglow aus", data->sag_mv, data->filtered_mv,
             data->state_of_charge);
 
