@@ -369,6 +369,14 @@ taken with the LEDs lit. The result is low-pass filtered and the percentage
 only moves in steps of two. The drop is learned again after every boot, so the
 reading can be a few percent low until the half has gone idle once.
 
+On USB the VDDH pin carries the supply, a constant 4385 to 4390 mV, not the
+battery. The reading says nothing about the cell then, so the display shows an
+empty battery frame with the bolt and no percentage while a half is charging.
+
+The percentage comes from a typical LiPo discharge curve instead of ZMK's
+straight line, with 100 % at 4120 mV: a full cell measured 4140 mV right after
+unplugging, which the straight line called 93 %.
+
 The filter never reports 0 %: that value means "not connected" on the display.
 
 Split connection latency is left at the ZMK default. Lowering it makes

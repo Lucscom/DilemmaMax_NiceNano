@@ -156,7 +156,9 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
     lv_canvas_draw_rect(canvas, 9, y, 20, 9, &fg);
     lv_canvas_draw_rect(canvas, 10, y + 1, 18, 7, &bg);
     lv_canvas_draw_rect(canvas, 29, y + 2, 2, 5, &fg);
-    int fill = (16 * level + 50) / 100;
+    // Beim Laden misst die Haelfte die USB-Versorgung statt des Akkus (src/battery_filter.c),
+    // der Wert waere immer 100. Dann nur leerer Rahmen und Blitz.
+    int fill = battery.charging ? 0 : (16 * level + 50) / 100;
     if (fill > 0) {
         lv_canvas_draw_rect(canvas, 11, y + 2, fill, 5, &fg);
     }
@@ -171,6 +173,10 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
                 }
             }
         }
+    }
+
+    if (battery.charging) {
+        return;
     }
 
     char value[4];

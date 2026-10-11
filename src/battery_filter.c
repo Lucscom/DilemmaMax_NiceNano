@@ -2,7 +2,8 @@
  * Dilemma Max - Akkumessung, die den Spannungseinbruch durch das Underglow herausrechnet.
  *
  * ZMK misst die Akkuspannung am VDDH-Pin (zmk,battery-nrf-vddh) und rechnet sie linear in
- * Prozent um: 3450 mV = 0 %, 4200 mV = 100 %, also 7,5 mV pro Prozent. Gemessen wird nur,
+ * Prozent um: 3450 mV = 0 %, 4200 mV = 100 %, also 7,5 mV pro Prozent. (Die Umrechnung
+ * macht inzwischen mv_to_pct() weiter unten mit einer eigenen Kurve.) Gemessen wird nur,
  * solange die Haelfte aktiv ist - und genau dann leuchten die 51 LEDs. Deren Strom laesst
  * die Spannung am Innenwiderstand von Akku, Schalter und Leiterbahnen einbrechen, je nach
  * Helligkeit, Farbe und Effekt unterschiedlich stark. Schon 75 mV sind 10 %. Die Anzeige
@@ -58,6 +59,8 @@ LOG_MODULE_REGISTER(dilemma_max_battery, CONFIG_ZMK_LOG_LEVEL);
 // Ab diesem Sprung folgt der Tiefpass sofort (USB gesteckt oder gezogen).
 #define FILTER_SNAP_MV 150
 #define SOC_HYSTERESIS 2
+// Mehr liefert keine LiPo-Zelle, das ist die USB-Versorgung
+#define EXTERNAL_POWER_MV 4250
 
 struct battery_filter_config {
     const struct device *source;
@@ -89,12 +92,40 @@ static bool underglow_is_on(void) {
 #endif
 }
 
-// Dieselbe Kennlinie wie ZMK (battery_common.c), nur mit 1 statt 0 als Untergrenze.
+/*
+ * Entladekurve einer LiPo-Zelle in Ruhe, Stuetzstellen in mV und Prozent, dazwischen linear.
+ *
+ * ZMK rechnet mit einer Geraden von 3450 mV (0 %) bis 4200 mV (100 %). Die passt an beiden
+ * Enden nicht: 4200 mV liegen nur an, solange das Ladegeraet drueckt - gemessen wurden an
+ * einer vollen Zelle direkt nach dem Abziehen 4140 mV, das waren 93 %. Und in der flachen
+ * Mitte der Kurve zeigt die Gerade bei 3700 mV noch ein Drittel an, wo real nur noch ein
+ * Fuenftel uebrig ist.
+ *
+ * Die Werte sind eine typische Kurve, nicht an diesen Zellen ausgemessen. Unten endet sie
+ * bei 1 statt 0, siehe oben.
+ */
+static const struct {
+    int16_t mv;
+    uint8_t pct;
+} discharge_curve[] = {
+    {4120, 100}, {4050, 90}, {3980, 80}, {3920, 70}, {3870, 60}, {3820, 50},
+    {3790, 40},  {3770, 30}, {3740, 20}, {3680, 10}, {3600, 5},  {3450, 1},
+};
+
 static uint8_t mv_to_pct(int32_t mv) {
-    if (mv >= 4200) {
+    if (mv >= discharge_curve[0].mv) {
         return 100;
     }
-    return (uint8_t)CLAMP(mv * 2 / 15 - 459, 1, 100);
+
+    for (size_t i = 1; i < ARRAY_SIZE(discharge_curve); i++) {
+        if (mv >= discharge_curve[i].mv) {
+            int32_t span_mv = discharge_curve[i - 1].mv - discharge_curve[i].mv;
+            int32_t span_pct = discharge_curve[i - 1].pct - discharge_curve[i].pct;
+            return discharge_curve[i].pct + (mv - discharge_curve[i].mv) * span_pct / span_mv;
+        }
+    }
+
+    return 1;
 }
 
 static int read_source_mv(const struct device *source, int32_t *mv) {
@@ -152,6 +183,19 @@ static int battery_filter_sample(const struct device *dev) {
         return rc;
     }
     if (underglow_is_on() != loaded) {
+        return 0;
+    }
+
+    // Am USB-Kabel liegt an VDDH nicht der Akku an, sondern die Versorgung: gemessen wurden
+    // konstant 4385 bis 4390 mV, egal wie voll die Zelle war. Ueber den Akku sagt das nichts,
+    // und als Paar fuer den Einbruch taugt die Messung auch nicht. Das Display zeigt beim
+    // Laden deshalb keinen Wert; nach dem Abziehen springt der Tiefpass auf die Zelle.
+    if (mv > EXTERNAL_POWER_MV) {
+        data->have_prev = false;
+        data->filtered_mv = mv;
+        data->state_of_charge = 100;
+        data->have_value = true;
+        LOG_INF("Akku %d mV: externe Versorgung, kein Akkustand", mv);
         return 0;
     }
 
