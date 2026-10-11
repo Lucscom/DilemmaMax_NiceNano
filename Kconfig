@@ -164,3 +164,19 @@ config DILEMMA_MAX_RAIL_IDLE
 
       Beide Haelften gehoeren zusammen geflasht: das Central schaltet die Schiene des
       Peripherals ueber ein eigenes Behavior.
+
+config DILEMMA_MAX_BATTERY_CAPACITY_MAH
+    int "Kapazitaet des Akkus einer Haelfte in mAh"
+    default 220
+    depends on DILEMMA_MAX_BATTERY_FILTER
+    help
+      Fuer die Schaetzung des Ladestands am USB-Kabel: dort liegt am Messpin die
+      Versorgung an und nicht der Akku, der Fortschritt wird deshalb aus Ladestrom,
+      Zeit und Kapazitaet hochgerechnet.
+
+config DILEMMA_MAX_CHARGE_CURRENT_MA
+    int "Ladestrom in mA"
+    default 100
+    depends on DILEMMA_MAX_BATTERY_FILTER
+    help
+      Der Ladechip des nice!nano v2 laedt mit 100 mA.

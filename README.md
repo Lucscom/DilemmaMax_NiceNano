@@ -370,8 +370,13 @@ only moves in steps of two. The drop is learned again after every boot, so the
 reading can be a few percent low until the half has gone idle once.
 
 On USB the VDDH pin carries the supply, a constant 4385 to 4390 mV, not the
-battery. The reading says nothing about the cell then, so the display shows an
-empty battery frame with the bolt and no percentage while a half is charging.
+battery, and the charger chip does not report its progress. The level shown
+while charging is therefore an estimate: the level at plug-in plus charge
+current times elapsed time over capacity (`CONFIG_DILEMMA_MAX_CHARGE_CURRENT_MA`,
+`CONFIG_DILEMMA_MAX_BATTERY_CAPACITY_MAH`, 100 mA and 220 mAh), at half speed
+above 80 % and capped at 99 %. Only the charge LED says when the cell is full.
+A half that boots on USB does not know its level at plug-in and shows an empty
+frame with the bolt until it is unplugged.
 
 The percentage comes from a typical LiPo discharge curve instead of ZMK's
 straight line, with 100 % at 4120 mV: a full cell measured 4140 mV right after

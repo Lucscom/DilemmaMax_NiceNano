@@ -61,6 +61,9 @@ LOG_MODULE_REGISTER(dilemma_max_battery, CONFIG_ZMK_LOG_LEVEL);
 #define SOC_HYSTERESIS 2
 // Mehr liefert keine LiPo-Zelle, das ist die USB-Versorgung
 #define EXTERNAL_POWER_MV 4250
+// Ab hier nimmt der Ladestrom ab, die Schaetzung zaehlt die Zeit nur noch halb
+#define CHARGE_TAPER_PCT 80
+#define CHARGE_MAX_PCT 99
 
 struct battery_filter_config {
     const struct device *source;
@@ -81,6 +84,12 @@ struct battery_filter_data {
 
     bool have_sag;
     int32_t sag_mv;
+
+    // Laden am USB-Kabel, siehe battery_filter_charging()
+    bool external;
+    bool charge_known;
+    int32_t charge_mpct;
+    int64_t charge_ts;
 };
 
 static bool underglow_is_on(void) {
@@ -169,6 +178,48 @@ static int read_median_mv(const struct device *source, int32_t *mv) {
     return 0;
 }
 
+/*
+ * Am USB-Kabel liegt an VDDH nicht der Akku an, sondern die Versorgung: gemessen wurden
+ * konstant 4385 bis 4390 mV, egal wie voll die Zelle war. Der Ladechip des nice!nano meldet
+ * dem Controller auch nicht, wie weit er ist. Messen laesst sich der Ladestand beim Laden
+ * also nicht, nur schaetzen:
+ *
+ *   Stand beim Einstecken + Ladestrom x Zeit / Kapazitaet
+ *
+ * Ab 80 % zaehlt die Zeit nur noch halb, weil der Ladestrom dort abnimmt, und bei 99 ist
+ * Schluss - ob die Zelle wirklich voll ist, zeigt nur die Lade-LED. Nach dem Abziehen wird
+ * wieder gemessen, und der Tiefpass springt auf den echten Wert.
+ *
+ * Startet die Haelfte am Kabel (nach dem Flashen, oder per Schalter eingeschaltet), fehlt
+ * der Stand beim Einstecken. Dann wird 1 gemeldet, was das Display als "laedt, Stand
+ * unbekannt" ohne Zahl zeigt.
+ */
+static void battery_filter_charging(struct battery_filter_data *data, int32_t mv, int64_t now) {
+    if (!data->external) {
+        data->external = true;
+        data->charge_known = data->have_value;
+        data->charge_mpct = data->state_of_charge * 1000;
+    } else if (data->charge_known) {
+        // Promille-Prozent: dt [ms] * I [mA] * 100000 / (C [mAh] * 3600000)
+        int32_t gain = (int32_t)(now - data->charge_ts) * CONFIG_DILEMMA_MAX_CHARGE_CURRENT_MA /
+                       (CONFIG_DILEMMA_MAX_BATTERY_CAPACITY_MAH * 36);
+        if (data->charge_mpct >= CHARGE_TAPER_PCT * 1000) {
+            gain /= 2;
+        }
+        data->charge_mpct = MIN(data->charge_mpct + gain, CHARGE_MAX_PCT * 1000);
+    }
+    data->charge_ts = now;
+
+    // Als Paar fuer den Einbruch taugt die Messung nicht
+    data->have_prev = false;
+    data->filtered_mv = mv;
+    data->state_of_charge = data->charge_known ? CLAMP(data->charge_mpct / 1000, 2, 99) : 1;
+    data->have_value = true;
+
+    LOG_INF("Akku %d mV: externe Versorgung, Ladestand geschaetzt %d%%", mv,
+            data->state_of_charge);
+}
+
 static int battery_filter_sample(const struct device *dev) {
     const struct battery_filter_config *config = dev->config;
     struct battery_filter_data *data = dev->data;
@@ -186,20 +237,13 @@ static int battery_filter_sample(const struct device *dev) {
         return 0;
     }
 
-    // Am USB-Kabel liegt an VDDH nicht der Akku an, sondern die Versorgung: gemessen wurden
-    // konstant 4385 bis 4390 mV, egal wie voll die Zelle war. Ueber den Akku sagt das nichts,
-    // und als Paar fuer den Einbruch taugt die Messung auch nicht. Das Display zeigt beim
-    // Laden deshalb keinen Wert; nach dem Abziehen springt der Tiefpass auf die Zelle.
+    int64_t now = k_uptime_get();
+
     if (mv > EXTERNAL_POWER_MV) {
-        data->have_prev = false;
-        data->filtered_mv = mv;
-        data->state_of_charge = 100;
-        data->have_value = true;
-        LOG_INF("Akku %d mV: externe Versorgung, kein Akkustand", mv);
+        battery_filter_charging(data, mv, now);
         return 0;
     }
-
-    int64_t now = k_uptime_get();
+    data->external = false;
 
     if (data->have_prev && data->prev_loaded != loaded && now - data->prev_ts <= SAG_PAIR_MAX_MS) {
         int32_t sag = loaded ? data->prev_mv - mv : mv - data->prev_mv;
