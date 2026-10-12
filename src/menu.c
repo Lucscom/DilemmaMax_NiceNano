@@ -87,7 +87,8 @@ static const struct entry touch_entries[] = {
 };
 
 static const struct entry input_entries[] = {
-    {"Knob", DILEMMA_MAX_ICON_KNOB, KIND_INPUT, DILEMMA_MAX_INPUT_KNOB},
+    {"L Knob", DILEMMA_MAX_ICON_KNOB, KIND_INPUT, DILEMMA_MAX_INPUT_KNOB_LEFT},
+    {"R Knob", DILEMMA_MAX_ICON_KNOB, KIND_INPUT, DILEMMA_MAX_INPUT_KNOB_RIGHT},
     {"OS", DILEMMA_MAX_ICON_MONITOR, KIND_OS, 0},
 };
 
@@ -186,7 +187,8 @@ static void format_input(uint8_t item, char *value, size_t value_len) {
     case DILEMMA_MAX_INPUT_SCROLL:
         snprintf(value, value_len, "%u / 5", current + 1);
         break;
-    case DILEMMA_MAX_INPUT_KNOB:
+    case DILEMMA_MAX_INPUT_KNOB_LEFT:
+    case DILEMMA_MAX_INPUT_KNOB_RIGHT:
         snprintf(value, value_len, "%s", current < ARRAY_SIZE(knob_names) ? knob_names[current] : "");
         break;
     default:

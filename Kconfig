@@ -220,6 +220,7 @@ config DILEMMA_MAX_INPUT_SETTINGS
     bool "Einstellungen fuer Trackpad und Encoder"
     default y
     depends on DILEMMA_MAX_POWER && DT_HAS_DILEMMA_INPUT_PROCESSOR_PAD_TUNE_ENABLED
+    depends on DT_HAS_DILEMMA_BEHAVIOR_KNOB_ENABLED
     help
       Cursor- und Scroll-Geschwindigkeit, Scroll-Richtung, Tippen und Auslaufen des
       Trackpads und die Funktion des linken Encoders, einstellbar im Menue und in den
@@ -227,4 +228,5 @@ config DILEMMA_MAX_INPUT_SETTINGS
       Input-Processor pad_tune ein (src/pad_tune.c), der im Trackpad-Listener anstelle
       des zip_xy_scaler steht.
 
-      Die Keymap braucht die Layer DM_LAYER_KNOB_SCROLL und DM_LAYER_KNOB_LIGHT.
+      Die Encoder haengen in der Keymap am Behavior &knob (src/knob.c), das die
+      eingestellte Funktion ueber &kp, &msc bzw. &rgb_ug ausfuehrt.

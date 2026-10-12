@@ -347,7 +347,8 @@ The menu has three pages:
 | | `Invert` | reverses the scroll direction | off, on |
 | | `Glide` | scrolling coasts after lifting the fingers | on, off |
 | | `Tap` | tapping the pad clicks | on, off |
-| Input | `Knob` | left encoder: volume, scrolling or underglow brightness | vol, scrl, light |
+| Input | `L Knob` | left encoder: volume, scrolling or underglow brightness | vol, scrl, light |
+| | `R Knob` | the same for the right encoder | vol, scrl, light |
 | | `OS` | Mac or Windows for the output currently selected | mac, win |
 
 Power defaults are 30 s, 30 s and 5 min. All values are stored in the settings.
@@ -363,8 +364,9 @@ Where the Touch and Input settings take effect: speed and direction are applied
 on the left half by the `pad_tune` input processor (`src/pad_tune.c`), which
 replaces the fixed `zip_xy_scaler`. `Glide` and `Tap` are decided by the
 trackpad driver on the right half, so the left half sends them along with the
-underglow state. `Knob` switches one of two keymap layers that only rebind the
-left encoder.
+underglow state. Both encoders are bound to the `&knob` behavior
+(`src/knob.c`), which runs the selected function through `&kp`, `&msc` or
+`&rgb_ug`. With NAV held the encoders keep the NAV layer's bindings.
 
 `OS` is stored per output: each Bluetooth profile and USB has its own value, so
 switching profiles switches the keyboard along with it. A keyboard cannot

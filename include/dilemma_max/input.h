@@ -12,7 +12,8 @@ enum dilemma_max_input_item {
     DILEMMA_MAX_INPUT_INVERT, /* Scroll-Richtung umkehren, 0/1 */
     DILEMMA_MAX_INPUT_GLIDE,  /* Scrollen laeuft nach dem Abheben aus, 0/1 */
     DILEMMA_MAX_INPUT_TAP,    /* Tippen aufs Pad klickt, 0/1 */
-    DILEMMA_MAX_INPUT_KNOB,   /* linker Encoder: DILEMMA_MAX_KNOB_* */
+    DILEMMA_MAX_INPUT_KNOB_LEFT,  /* linker Encoder: DILEMMA_MAX_KNOB_* */
+    DILEMMA_MAX_INPUT_KNOB_RIGHT, /* rechter Encoder: DILEMMA_MAX_KNOB_* */
     DILEMMA_MAX_INPUT_ITEM_COUNT,
 };
 

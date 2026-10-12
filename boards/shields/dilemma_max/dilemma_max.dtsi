@@ -37,6 +37,13 @@
             compatible = "dilemma,behavior-menu";
             #binding-cells = <1>;
         };
+
+        // Encoder mit einstellbarer Funktion, siehe src/knob.c. Parameter: DM_KNOB_* aus
+        // dt-bindings/dilemma_max/knob.h. Laeuft nur auf der linken Haelfte.
+        knob: knob {
+            compatible = "dilemma,behavior-knob";
+            #binding-cells = <1>;
+        };
     };
 
     kscan: kscan {

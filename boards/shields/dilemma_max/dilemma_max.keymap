@@ -8,6 +8,7 @@
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/rgb.h>
 #include <dt-bindings/dilemma_max/menu.h>
+#include <dt-bindings/dilemma_max/knob.h>
 
 / {
     behaviors {
@@ -19,11 +20,14 @@
             tap-ms = <25>;
         };
 
-        // Linker Encoder als Helligkeitsregler (Menue: Input > Knob > light)
-        light_encoder: light_encoder {
+        // Beide Encoder auf dem Basis-Layer: was sie tun (Lautstaerke, Scrollen, Helligkeit),
+        // wird im Menue unter Input eingestellt, siehe src/knob.c. tap-ms wie beim
+        // scroll_encoder, damit beim Scrollen mindestens ein Tick faellt.
+        knob_enc: knob_enc {
             compatible = "zmk,behavior-sensor-rotate-var";
             #sensor-binding-cells = <2>;
-            bindings = <&rgb_ug>, <&rgb_ug>;
+            bindings = <&knob>, <&knob>;
+            tap-ms = <25>;
         };
 
         // Linker Encoder im Einstellungsmenue: drehen waehlt den Eintrag
@@ -79,8 +83,7 @@
         compatible = "zmk,keymap";
 
         // Die Reihenfolge der Layer ist in dt-bindings/dilemma_max/layers.h festgelegt:
-        // BASE, WIN, KNOB_SCROLL, KNOB_LIGHT, NAV, NAV_WIN, MENU. Die Firmware schaltet WIN,
-        // die beiden KNOB-Layer und MENU selbst.
+        // BASE, WIN, NAV, NAV_WIN, MENU. Die Firmware schaltet WIN und MENU selbst.
         default_layer {
             display-name = "BASE";
             // Deutsches QWERTZ-Layout (OS auf Deutsch eingestellt)
@@ -106,7 +109,9 @@
                                   &kp C_MUTE &kp LALT &kp LGUI &mo DM_LAYER_NAV      &kp BSPC &kp SPACE &kp RET &kp C_PP
             >;
 
-            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_DOWN SCRL_UP>;
+            // Funktion beider Encoder: einstellbar im Menue (Standard: links Lautstaerke,
+            // rechts Scrollen)
+            sensor-bindings = <&knob_enc DM_KNOB_LEFT_DEC DM_KNOB_LEFT_INC &knob_enc DM_KNOB_RIGHT_DEC DM_KNOB_RIGHT_INC>;
         };
 
         // Layer DM_LAYER_WIN (1): aktiv, solange der gewaehlte Ausgang im Menue auf "win"
@@ -123,36 +128,6 @@
                 &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
                                 &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans
             >;
-        };
-
-        // Layer DM_LAYER_KNOB_SCROLL (2) und DM_LAYER_KNOB_LIGHT (3): Funktion des linken
-        // Encoders, gewaehlt im Menue unter Input > Knob. Die Firmware schaltet den passenden
-        // Layer ein; ist keiner aktiv, regelt der Encoder die Lautstaerke (default_layer).
-        // Der rechte Encoder bleibt, wie er ist. Mit NAV gilt wieder die Belegung von NAV.
-        knob_scroll_layer {
-            display-name = "SCROLL";
-            bindings = <
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                                &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans
-            >;
-
-            sensor-bindings = <&scroll_encoder SCRL_DOWN SCRL_UP &scroll_encoder SCRL_DOWN SCRL_UP>;
-        };
-
-        knob_light_layer {
-            display-name = "LIGHT";
-            bindings = <
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                                &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans
-            >;
-
-            sensor-bindings = <&light_encoder RGB_BRD_CMD RGB_BRI_CMD &scroll_encoder SCRL_DOWN SCRL_UP>;
         };
 
         nav_layer {
@@ -186,7 +161,7 @@
             sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_LEFT SCRL_RIGHT>;
         };
 
-        // Layer DM_LAYER_NAV_WIN (5): NAV unter Windows, schaltet sich ueber conditional_layers
+        // Layer DM_LAYER_NAV_WIN (3): NAV unter Windows, schaltet sich ueber conditional_layers
         // von selbst ein. Ersetzt die Mac-Sondertasten: Diktat (Win+H) statt Globe,
         // Task-Ansicht (Win+Tab) statt Mission Control.
         nav_win_layer {
@@ -200,7 +175,7 @@
             >;
         };
 
-        // Layer DM_LAYER_MENU (6): aktiv, solange das Einstellungsmenue auf dem Display offen
+        // Layer DM_LAYER_MENU (4): aktiv, solange das Einstellungsmenue auf dem Display offen
         // ist. Oeffnen: NAV halten und den linken Encoder druecken. Im Menue: drehen = Eintrag
         // waehlen, druecken = Untermenue oeffnen oder Wert weiterschalten, NAV + druecken =
         // zurueck bzw. schliessen. Nach 20 s Pause geht es von selbst zu. Alle anderen Tasten
@@ -215,7 +190,7 @@
                         &menu DM_MENU_SELECT  &trans  &trans  &trans      &trans  &trans  &trans  &trans
             >;
 
-            sensor-bindings = <&menu_enc DM_MENU_UP DM_MENU_DOWN &scroll_encoder SCRL_DOWN SCRL_UP>;
+            sensor-bindings = <&menu_enc DM_MENU_UP DM_MENU_DOWN &knob_enc DM_KNOB_RIGHT_DEC DM_KNOB_RIGHT_INC>;
         };
     };
 };
