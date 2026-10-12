@@ -18,5 +18,8 @@ uint8_t dilemma_max_menu_cursor(void);
 void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, char *value,
                                 size_t value_len);
 
+/* Kurzer Hinweis, was der Eintrag bewirkt, hoechstens etwa 10 Zeichen. */
+const char *dilemma_max_menu_item_hint(uint8_t item);
+
 /* In src/status_screen.c: Menue wurde geoeffnet, geschlossen oder veraendert. */
 void dilemma_max_status_screen_menu_changed(void);

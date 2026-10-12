@@ -99,10 +99,22 @@ void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, cha
         format_timeout(dilemma_max_power_timeout_s(item), value, value_len);
     } else if (item == ITEM_BATT) {
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_BATTERY_FILTER)
-        // Gemessene Spannung der linken Haelfte; am USB-Kabel ist das die Versorgung
-        snprintf(value, value_len, "%d mV", (int)dilemma_max_battery_filter_mv());
+        // Gemessene Spannung der linken Haelfte in mV; am USB-Kabel ist das die Versorgung
+        snprintf(value, value_len, "%d", (int)dilemma_max_battery_filter_mv());
 #endif
+    } else {
+        snprintf(value, value_len, "close");
     }
+}
+
+const char *dilemma_max_menu_item_hint(uint8_t item) {
+    static const char *const hints[DILEMMA_MAX_MENU_ITEM_COUNT] = {
+        [DILEMMA_MAX_POWER_LIGHT] = "lights off", [DILEMMA_MAX_POWER_RAIL] = "display off",
+        [DILEMMA_MAX_POWER_SLEEP] = "deep sleep", [ITEM_BATT] = "mV left half",
+        [ITEM_EXIT] = "press knob",
+    };
+
+    return item < DILEMMA_MAX_MENU_ITEM_COUNT ? hints[item] : "";
 }
 
 static int menu_binding_pressed(struct zmk_behavior_binding *binding,

@@ -192,45 +192,113 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
 /*
  * Einstellungsmenue (src/menu.c): solange es offen ist, ersetzt es den oberen und den
- * mittleren Block. Drei Eintraege pro Block, je 22 px: Name links, Wert rechts darunter,
- * der gewaehlte Eintrag invertiert. Der untere Block zeigt weiter den Layer, also "MENU".
+ * mittleren Block. Der untere zeigt weiter den Layer, also "MENU".
+ *
+ * Gezeigt wird ein Eintrag gross in einer Karte: Name im invertierten Kopf, Wert in grosser
+ * Schrift, darunter ein Hinweis, was er bewirkt. Darueber und darunter stehen die Nachbarn
+ * mit einem Pfeil, ganz unten Punkte fuer die Position in der Liste.
+ *
+ * Das Layout ist in einem 68x136 px hohen Feld beschrieben, das ueber beide Bloecke geht;
+ * jeder Block zeichnet seinen Ausschnitt (block_y = 0 oder BLOCK_SIZE). Text darf die
+ * Grenze bei y = 68 nicht kreuzen, Rechtecke werden abgeschnitten.
  */
-#define MENU_ROWS_PER_BLOCK 3
-#define MENU_ROW_HEIGHT 22
+#define MENU_HEADER_LINE_Y 12
+#define MENU_PREV_ARROW_Y 17
+#define MENU_PREV_LABEL_Y 24
+#define MENU_CARD_Y 40
+#define MENU_CARD_H 64
+#define MENU_CARD_HEAD_H 13
+#define MENU_VALUE_Y 69
+#define MENU_HINT_Y 91
+#define MENU_NEXT_LABEL_Y 109
+#define MENU_NEXT_ARROW_Y 120
+#define MENU_DOTS_Y 129
 
-static void draw_menu(lv_obj_t *canvas, lv_color_t cbuf[], uint8_t first_item) {
-    lv_draw_rect_dsc_t bg;
-    init_rect(&bg, COLOR_BG);
-    lv_draw_rect_dsc_t fg;
-    init_rect(&fg, COLOR_FG);
+static void menu_rect(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t x, lv_coord_t y,
+                      lv_coord_t w, lv_coord_t h, lv_color_t color) {
+    lv_coord_t top = MAX(y - block_y, 0);
+    lv_coord_t bottom = MIN(y + h - block_y, BLOCK_SIZE);
+    if (bottom <= top) {
+        return;
+    }
 
-    lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
+    lv_draw_rect_dsc_t dsc;
+    init_rect(&dsc, color);
+    lv_canvas_draw_rect(canvas, x, top, w, bottom - top, &dsc);
+}
 
-    for (uint8_t row = 0; row < MENU_ROWS_PER_BLOCK; row++) {
-        uint8_t item = first_item + row;
-        if (item >= DILEMMA_MAX_MENU_ITEM_COUNT) {
-            break;
+static void menu_text(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t x, lv_coord_t y,
+                      lv_coord_t w, lv_color_t color, const lv_font_t *font,
+                      lv_text_align_t align, const char *text) {
+    if (y < block_y || y >= block_y + BLOCK_SIZE) {
+        return;
+    }
+
+    lv_draw_label_dsc_t dsc;
+    init_label(&dsc, color, font, align);
+    lv_canvas_draw_text(canvas, x, y - block_y, w, &dsc, text);
+}
+
+// Pfeilspitze aus 2 px hohen Stufen, 9 px breit; down = Spitze unten
+static void menu_arrow(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t y, bool down) {
+    for (int i = 0; i < 5; i++) {
+        lv_coord_t row = y + (down ? 4 - i : i);
+        menu_rect(canvas, block_y, BLOCK_SIZE / 2 - i, row, 1, 2, COLOR_FG);
+        menu_rect(canvas, block_y, BLOCK_SIZE / 2 + i, row, 1, 2, COLOR_FG);
+    }
+}
+
+static void draw_menu(lv_obj_t *canvas, lv_color_t cbuf[], lv_coord_t block_y) {
+    const uint8_t count = DILEMMA_MAX_MENU_ITEM_COUNT;
+    uint8_t cursor = dilemma_max_menu_cursor();
+    char label[9];
+    char value[9];
+    char unused[9];
+
+    menu_rect(canvas, block_y, 0, block_y, BLOCK_SIZE, BLOCK_SIZE, COLOR_BG);
+
+    // Kopfzeile mit Position
+    char position[6];
+    snprintf(position, sizeof(position), "%u/%u", cursor + 1, count);
+    menu_text(canvas, block_y, 1, 2, 40, COLOR_FG, &lv_font_unscii_8, LV_TEXT_ALIGN_LEFT, "SETUP");
+    menu_text(canvas, block_y, BLOCK_SIZE - 25, 2, 24, COLOR_FG, &lv_font_unscii_8,
+              LV_TEXT_ALIGN_RIGHT, position);
+    menu_rect(canvas, block_y, 0, MENU_HEADER_LINE_Y, BLOCK_SIZE, 1, COLOR_FG);
+
+    // Nachbar davor
+    dilemma_max_menu_item_text((cursor + count - 1) % count, label, sizeof(label), unused,
+                               sizeof(unused));
+    menu_arrow(canvas, block_y, MENU_PREV_ARROW_Y, false);
+    menu_text(canvas, block_y, 0, MENU_PREV_LABEL_Y, BLOCK_SIZE, COLOR_FG, &lv_font_unscii_8,
+              LV_TEXT_ALIGN_CENTER, label);
+
+    // Karte: Rahmen 1 px, Kopf invertiert
+    dilemma_max_menu_item_text(cursor, label, sizeof(label), value, sizeof(value));
+    menu_rect(canvas, block_y, 2, MENU_CARD_Y, BLOCK_SIZE - 4, MENU_CARD_H, COLOR_FG);
+    menu_rect(canvas, block_y, 3, MENU_CARD_Y + MENU_CARD_HEAD_H, BLOCK_SIZE - 6,
+              MENU_CARD_H - MENU_CARD_HEAD_H - 1, COLOR_BG);
+    menu_text(canvas, block_y, 2, MENU_CARD_Y + 3, BLOCK_SIZE - 4, COLOR_BG, &lv_font_unscii_8,
+              LV_TEXT_ALIGN_CENTER, label);
+    menu_text(canvas, block_y, 3, MENU_VALUE_Y, BLOCK_SIZE - 6, COLOR_FG,
+              &lv_font_montserrat_18, LV_TEXT_ALIGN_CENTER, value);
+    menu_text(canvas, block_y, 3, MENU_HINT_Y, BLOCK_SIZE - 6, COLOR_FG, &lv_font_montserrat_10,
+              LV_TEXT_ALIGN_CENTER, dilemma_max_menu_item_hint(cursor));
+
+    // Nachbar danach
+    dilemma_max_menu_item_text((cursor + 1) % count, label, sizeof(label), unused,
+                               sizeof(unused));
+    menu_text(canvas, block_y, 0, MENU_NEXT_LABEL_Y, BLOCK_SIZE, COLOR_FG, &lv_font_unscii_8,
+              LV_TEXT_ALIGN_CENTER, label);
+    menu_arrow(canvas, block_y, MENU_NEXT_ARROW_Y, true);
+
+    // Punkte: einer pro Eintrag, der aktuelle gefuellt
+    lv_coord_t dots_x = (BLOCK_SIZE - (count * 7 - 3)) / 2;
+    for (uint8_t i = 0; i < count; i++) {
+        lv_coord_t x = dots_x + i * 7;
+        menu_rect(canvas, block_y, x, MENU_DOTS_Y, 4, 4, COLOR_FG);
+        if (i != cursor) {
+            menu_rect(canvas, block_y, x + 1, MENU_DOTS_Y + 1, 2, 2, COLOR_BG);
         }
-
-        char label[9];
-        char value[9];
-        dilemma_max_menu_item_text(item, label, sizeof(label), value, sizeof(value));
-
-        bool selected = item == dilemma_max_menu_cursor();
-        lv_coord_t y = row * MENU_ROW_HEIGHT + 1;
-
-        lv_draw_label_dsc_t label_dsc;
-        init_label(&label_dsc, selected ? COLOR_BG : COLOR_FG, &lv_font_unscii_8,
-                   LV_TEXT_ALIGN_LEFT);
-        lv_draw_label_dsc_t value_dsc;
-        init_label(&value_dsc, selected ? COLOR_BG : COLOR_FG, &lv_font_unscii_8,
-                   LV_TEXT_ALIGN_RIGHT);
-
-        if (selected) {
-            lv_canvas_draw_rect(canvas, 0, y, BLOCK_SIZE, MENU_ROW_HEIGHT - 1, &fg);
-        }
-        lv_canvas_draw_text(canvas, 2, y + 2, BLOCK_SIZE - 4, &label_dsc, label);
-        lv_canvas_draw_text(canvas, 2, y + 12, BLOCK_SIZE - 4, &value_dsc, value);
     }
 
     rotate_canvas(canvas, cbuf);
@@ -329,7 +397,7 @@ static void draw_middle(void) {
 
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
     if (menu_is_open()) {
-        draw_menu(canvas, middle_cbuf, MENU_ROWS_PER_BLOCK);
+        draw_menu(canvas, middle_cbuf, BLOCK_SIZE);
         return;
     }
 #endif
