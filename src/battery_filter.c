@@ -70,6 +70,8 @@ LOG_MODULE_REGISTER(dilemma_max_battery, CONFIG_ZMK_LOG_LEVEL);
 // danach noch dauern
 #define CHARGE_PLATEAU_PCT 91
 #define CHARGE_TAIL_MS (30 * 60 * MSEC_PER_SEC)
+// Obergrenze fuer den Anstieg beim Laden, etwas ueber den rechnerischen 46 % pro Stunde
+#define CHARGE_MAX_PCT_PER_HOUR 60
 
 struct battery_filter_config {
     const struct device *source;
@@ -95,6 +97,8 @@ struct battery_filter_data {
     bool charging;
     int64_t plateau_ts; // seit wann VDDH an der 4,4-V-Grenze steht, 0 = noch nicht
     uint8_t plateau_pct; // Ladestand in dem Moment, ab dem die Zeit zaehlt
+    int64_t charge_start_ts;  // Beginn des Ladevorgangs ...
+    uint8_t charge_start_pct; // ... und der Ladestand in dem Moment
 };
 
 static bool underglow_is_on(void) {
@@ -252,6 +256,18 @@ static void battery_filter_charging(struct battery_filter_data *data, int32_t mv
         data->plateau_ts = 0;
         pct = curve_pct(charge_curve, ARRAY_SIZE(charge_curve), mv);
     }
+
+    // Schneller, als der Ladechip liefern kann, steigt der Wert nicht: 100 mA in eine
+    // 220-mAh-Zelle sind 0,76 % pro Minute. Sonst spraenge die Anzeige beim Einstecken,
+    // weil Lade- und Entladekurve nicht auf das Prozent genau aneinander passen und die
+    // Zellspannung beim Laden sofort ein Stueck anzieht.
+    if (started) {
+        data->charge_start_ts = now;
+        data->charge_start_pct = known ? before : pct;
+    }
+    int64_t allowed = data->charge_start_pct +
+                      (now - data->charge_start_ts) * CHARGE_MAX_PCT_PER_HOUR / (3600 * MSEC_PER_SEC);
+    pct = MIN(pct, allowed);
 
     // 1 liest das Display beim Laden als "Stand unbekannt"
     data->state_of_charge = MAX(MAX(pct, before), 2);
