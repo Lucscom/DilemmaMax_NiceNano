@@ -30,13 +30,6 @@
             tap-ms = <25>;
         };
 
-        // Linker Encoder im Einstellungsmenue: drehen waehlt den Eintrag
-        menu_enc: menu_enc {
-            compatible = "zmk,behavior-sensor-rotate-var";
-            #sensor-binding-cells = <2>;
-            bindings = <&menu>, <&menu>;
-        };
-
         // Bluetooth-Profile auf NAV + 1..5: tippen waehlt das Profil, 3 s halten waehlt es und
         // loescht seine Kopplung (&bt BT_CLR) -- danach wartet es auf einen neuen Rechner.
         // Das Loeschen passiert sofort und laesst sich nicht abbrechen.
@@ -190,7 +183,7 @@
                         &menu DM_MENU_SELECT  &trans  &trans  &trans      &trans  &trans  &trans  &trans
             >;
 
-            sensor-bindings = <&menu_enc DM_MENU_UP DM_MENU_DOWN &knob_enc DM_KNOB_RIGHT_DEC DM_KNOB_RIGHT_INC>;
+            sensor-bindings = <&menu_knob &knob_enc DM_KNOB_RIGHT_DEC DM_KNOB_RIGHT_INC>;
         };
     };
 };

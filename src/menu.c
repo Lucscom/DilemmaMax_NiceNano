@@ -249,6 +249,27 @@ static void menu_select(void) {
     }
 }
 
+// Nach jeder Bedienung: Uhr fuers automatische Schliessen neu stellen und neu zeichnen
+static void menu_touched(void) {
+    if (menu_open) {
+        k_work_reschedule(&auto_close_work, AUTO_CLOSE);
+    } else {
+        k_work_cancel_delayable(&auto_close_work);
+    }
+    dilemma_max_status_screen_menu_changed();
+}
+
+void dilemma_max_menu_step(int steps) {
+    int count = pages[menu_page].count;
+
+    if (!menu_open || steps == 0) {
+        return;
+    }
+
+    menu_cursor = (((int)menu_cursor + steps) % count + count) % count;
+    menu_touched();
+}
+
 static int menu_binding_pressed(struct zmk_behavior_binding *binding,
                                 struct zmk_behavior_binding_event event) {
     uint8_t count = pages[menu_page].count;
@@ -283,12 +304,7 @@ static int menu_binding_pressed(struct zmk_behavior_binding *binding,
         return -ENOTSUP;
     }
 
-    if (menu_open) {
-        k_work_reschedule(&auto_close_work, AUTO_CLOSE);
-    } else {
-        k_work_cancel_delayable(&auto_close_work);
-    }
-    dilemma_max_status_screen_menu_changed();
+    menu_touched();
 
     return ZMK_BEHAVIOR_OPAQUE;
 }

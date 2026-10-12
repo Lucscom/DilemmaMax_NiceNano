@@ -38,6 +38,12 @@
             #binding-cells = <1>;
         };
 
+        // Encoder im Menue: drehen waehlt den Eintrag, siehe src/menu_knob.c
+        menu_knob: menu_knob {
+            compatible = "dilemma,behavior-menu-knob";
+            #sensor-binding-cells = <0>;
+        };
+
         // Encoder mit einstellbarer Funktion, siehe src/knob.c. Parameter: DM_KNOB_* aus
         // dt-bindings/dilemma_max/knob.h. Laeuft nur auf der linken Haelfte.
         knob: knob {

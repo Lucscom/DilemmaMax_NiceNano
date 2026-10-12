@@ -42,5 +42,8 @@ uint8_t dilemma_max_menu_item_icon(uint8_t item);
 void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, char *value,
                                 size_t value_len);
 
+/* Bewegt die Auswahl um so viele Eintraege, positiv nach unten. Fuer src/menu_knob.c. */
+void dilemma_max_menu_step(int steps);
+
 /* In src/status_screen.c: Menue wurde geoeffnet, geschlossen oder veraendert. */
 void dilemma_max_status_screen_menu_changed(void);
