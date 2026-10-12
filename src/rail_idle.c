@@ -187,8 +187,12 @@ static bool local_usb_powered(void) {
     return false;
 }
 
+// Power saving mode des Centrals: aus, auch am Ladekabel. Gilt, bis das Central wieder
+// "an" schickt - eine eigene Taste oder eine neue Verbindung heben das nicht auf.
+static bool rail_forced_off;
+
 static void peripheral_rail_apply(void) {
-    dilemma_max_rail_set(rail_wanted_by_split || local_usb_powered());
+    dilemma_max_rail_set(!rail_forced_off && (rail_wanted_by_split || local_usb_powered()));
 }
 
 static void peripheral_rail_command(bool on) {
@@ -273,9 +277,15 @@ static int rail_power_binding_pressed(struct zmk_behavior_binding *binding,
     switch (binding->param1) {
 #if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
     case DILEMMA_MAX_RAIL_OFF:
+        rail_forced_off = false;
+        peripheral_rail_command(false);
+        break;
+    case DILEMMA_MAX_RAIL_FORCE_OFF:
+        rail_forced_off = true;
         peripheral_rail_command(false);
         break;
     case DILEMMA_MAX_RAIL_ON:
+        rail_forced_off = false;
         peripheral_rail_command(true);
         break;
     case DILEMMA_MAX_RAIL_SLEEP:

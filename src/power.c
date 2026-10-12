@@ -73,6 +73,9 @@ static const uint16_t options[DILEMMA_MAX_POWER_ITEM_COUNT][OPTION_COUNT] = {
 static struct {
     uint8_t option[DILEMMA_MAX_OUTPUT_COUNT][DILEMMA_MAX_POWER_ITEM_COUNT];
     uint8_t dimmed_light;
+    // Power saving mode, gilt fuer alle Ausgaenge. Steht am Ende: aeltere Settings ohne das
+    // Feld sind einfach ein Byte kuerzer.
+    uint8_t eco;
 } __packed saved = {
     .option = {[0 ... DILEMMA_MAX_OUTPUT_COUNT - 1] = DEFAULT_OPTIONS},
 };
@@ -113,6 +116,8 @@ void dilemma_max_power_cycle(enum dilemma_max_power_item item) {
 }
 
 bool dilemma_max_power_remote_rail_on(void) { return !remote_rail_off; }
+
+bool dilemma_max_power_eco(void) { return saved.eco != 0; }
 
 static bool usb_powered(void) {
 #if IS_ENABLED(CONFIG_ZMK_USB)
@@ -160,12 +165,15 @@ static void eval_work_cb(struct k_work *work) {
     uint16_t sleep_s = dilemma_max_power_timeout_s(DILEMMA_MAX_POWER_SLEEP);
     bool usb = usb_powered();
 
-    bool want_remote_rail_off = rail_s != 0 && idle_s >= rail_s;
+    bool eco = saved.eco != 0;
+
+    // Power saving mode: Schiene immer aus, auf beiden Haelften und auch am Kabel
+    bool want_remote_rail_off = eco || (rail_s != 0 && idle_s >= rail_s);
     // Ohne Schiene leuchtet nichts, also spaetestens dann auch das Licht aus
     bool want_dim = (light_s != 0 && idle_s >= light_s) || want_remote_rail_off;
-    // Am Kabel bleibt die Schiene an, es sei denn, das ist zum Testen abgestellt
-    bool want_rail_off =
-        want_remote_rail_off && !(usb && IS_ENABLED(CONFIG_DILEMMA_MAX_POWER_RAIL_ON_USB));
+    // Sonst bleibt die Schiene am Kabel an, es sei denn, das ist zum Testen abgestellt
+    bool want_rail_off = want_remote_rail_off &&
+                         (eco || !(usb && IS_ENABLED(CONFIG_DILEMMA_MAX_POWER_RAIL_ON_USB)));
 
     bool changed = want_dim != dimmed || want_remote_rail_off != remote_rail_off;
 
@@ -198,6 +206,19 @@ static void eval_work_cb(struct k_work *work) {
     }
 
     k_work_schedule(&eval_work, K_SECONDS(1));
+}
+
+void dilemma_max_power_set_eco(bool on) {
+    if ((saved.eco != 0) == on) {
+        return;
+    }
+
+    saved.eco = on ? 1 : 0;
+    save_later();
+    // Sofort anwenden und der rechten Haelfte sagen, auch wenn sich an "Schiene aus" nichts
+    // aendert: dort entscheidet der Modus, ob das Ladekabel die Schiene anlaesst
+    k_work_reschedule(&eval_work, K_NO_WAIT);
+    dilemma_max_split_sync(WAKE_RETRIES);
 }
 
 static void note_activity(void) {
@@ -247,8 +268,8 @@ static int power_settings_set(const char *name, size_t len, settings_read_cb rea
             memcpy(saved.option[output], old.option, sizeof(old.option));
         }
         saved.dimmed_light = old.dimmed_light;
-    } else if (len == sizeof(saved)) {
-        rc = read_cb(cb_arg, &saved, sizeof(saved));
+    } else if (len == sizeof(saved) || len == sizeof(saved) - sizeof(saved.eco)) {
+        rc = read_cb(cb_arg, &saved, len);
         if (rc < 0) {
             return rc;
         }

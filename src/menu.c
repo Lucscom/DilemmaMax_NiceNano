@@ -52,6 +52,7 @@ enum entry_kind {
     KIND_POWER, // arg = dilemma_max_power_item
     KIND_INPUT, // arg = dilemma_max_input_item
     KIND_OS,
+    KIND_ECO, // Power saving mode
 };
 
 struct entry {
@@ -77,6 +78,7 @@ static const struct entry power_entries[] = {
     {"Light", DILEMMA_MAX_ICON_SUN, KIND_POWER, DILEMMA_MAX_POWER_LIGHT},
     {"Display", DILEMMA_MAX_ICON_MONITOR, KIND_POWER, DILEMMA_MAX_POWER_RAIL},
     {"Sleep", DILEMMA_MAX_ICON_SLEEP, KIND_POWER, DILEMMA_MAX_POWER_SLEEP},
+    {"Saving", DILEMMA_MAX_ICON_POWER, KIND_ECO, 0},
 };
 
 static const struct entry touch_entries[] = {
@@ -227,6 +229,9 @@ void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, cha
     case KIND_OS:
         snprintf(value, value_len, "%s", dilemma_max_os_is_windows() ? "win" : "mac");
         break;
+    case KIND_ECO:
+        snprintf(value, value_len, "%s", dilemma_max_power_eco() ? "on" : "off");
+        break;
     default:
         break;
     }
@@ -248,6 +253,12 @@ static void menu_select(void) {
         break;
     case KIND_OS:
         dilemma_max_os_toggle();
+        break;
+    case KIND_ECO:
+        // Das Display geht damit aus, das Menue also gleich mit zu. Wieder heraus kommt
+        // man blind: NAV + Encoder druecken, siehe DM_MENU_OPEN.
+        dilemma_max_power_set_eco(true);
+        menu_set_open(false);
         break;
     default:
         break;
@@ -281,6 +292,9 @@ static int menu_binding_pressed(struct zmk_behavior_binding *binding,
 
     switch (binding->param1) {
     case DM_MENU_OPEN:
+        // Aus dem Power saving mode fuehrt nur dieser Griff: das Display ist dunkel, im Menue
+        // laesst sich nichts ablesen. Also Modus beenden, dann geht das Menue sichtbar auf.
+        dilemma_max_power_set_eco(false);
         menu_set_open(true);
         break;
     case DM_MENU_UP:

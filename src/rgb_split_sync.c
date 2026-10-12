@@ -101,7 +101,8 @@ static void rgb_split_sync_send(bool on) {
     split_sync_invoke(RGB_UG_DEV, on ? RGB_ON_CMD : RGB_OFF_CMD);
 
     if (!rail_on) {
-        split_sync_invoke(RAIL_PWR_DEV, DILEMMA_MAX_RAIL_OFF);
+        split_sync_invoke(RAIL_PWR_DEV, dilemma_max_power_eco() ? DILEMMA_MAX_RAIL_FORCE_OFF
+                                                                : DILEMMA_MAX_RAIL_OFF);
     }
 
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_INPUT_SETTINGS)
