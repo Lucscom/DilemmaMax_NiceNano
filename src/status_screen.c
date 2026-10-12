@@ -38,6 +38,9 @@
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
 #include <dilemma_max/menu.h>
 #endif
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+#include <dilemma_max/os.h>
+#endif
 
 #define BLOCK_SIZE 68
 
@@ -375,7 +378,7 @@ static void draw_top(void) {
 /*
  * Modifier als 2x2-Raster. Gehalten = invertiertes Kaestchen.
  * Linke und rechte Variante eines Modifiers werden zusammengefasst; die Namen folgen
- * macOS (OPT = Alt, CMD = GUI).
+ * dem eingestellten Betriebssystem (Mac: OPT und CMD, Windows: ALT und WIN).
  */
 static void draw_mod(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, lv_coord_t w,
                      const char *name, bool active) {
@@ -414,8 +417,14 @@ static void draw_middle(void) {
 
     draw_mod(canvas, 0, 16, 33, "SHFT", mods & (MOD_LSFT | MOD_RSFT));
     draw_mod(canvas, 35, 16, 33, "CTRL", mods & (MOD_LCTL | MOD_RCTL));
-    draw_mod(canvas, 0, 38, 33, "OPT", mods & (MOD_LALT | MOD_RALT));
-    draw_mod(canvas, 35, 38, 33, "CMD", mods & (MOD_LGUI | MOD_RGUI));
+    // Die Namen folgen dem Betriebssystem des gewaehlten Ausgangs (src/os_mode.c)
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    bool windows = dilemma_max_os_is_windows();
+#else
+    bool windows = false;
+#endif
+    draw_mod(canvas, 0, 38, 33, windows ? "ALT" : "OPT", mods & (MOD_LALT | MOD_RALT));
+    draw_mod(canvas, 35, 38, 33, windows ? "WIN" : "CMD", mods & (MOD_LGUI | MOD_RGUI));
 
     rotate_canvas(canvas, middle_cbuf);
 }
@@ -555,6 +564,13 @@ ZMK_SUBSCRIPTION(mods_status, zmk_keycode_state_changed);
 static void layer_update_cb(struct layer_state layer) {
     state.layer = layer;
     draw_bottom();
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    // Mac/Windows schaltet den WIN-Layer, und daran haengen die Namen der Modifier
+    if (middle_canvas != NULL) {
+        draw_middle();
+        middle_canvas_drawn = true;
+    }
+#endif
 }
 
 static struct layer_state layer_get_state(const zmk_event_t *eh) {
