@@ -432,8 +432,12 @@ at 4385 mV. Up to that point the chip charges with constant current, so time is
 charge: 120 min x 100 mA is 200 mAh, 91 % of the cell.
 
 While charging, the level comes from that recording (`charge_curve` in
-`src/battery_filter.c`). Once the voltage sits at the limit, the remaining 9 %
-are counted by time, 30 minutes to 100 %. Only the charge LED says when the
+`src/battery_filter.c`). Once the voltage sits at the limit the cell has at
+least 91 % and the voltage says nothing more. If the limit was reached from
+below during this charge, the remaining 9 % are counted by time, 30 minutes to
+100 %. If the cable was plugged in while the keyboard was running, the level
+continues from what the cell had before. A half that boots on USB with the
+voltage already at the limit counts as full. Only the charge LED says when the
 chip is really done.
 
 On battery, the level comes from `discharge_curve`. It is derived from the same

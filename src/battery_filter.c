@@ -66,7 +66,8 @@ LOG_MODULE_REGISTER(dilemma_max_battery, CONFIG_ZMK_LOG_LEVEL);
 // Am USB-Kabel haelt der Ladechip VDDH etwa 225 mV ueber der Zelle, hoechstens aber auf
 // 4,4 V. Ab hier ist diese Grenze erreicht und die Spannung sagt nichts mehr.
 #define CHARGE_PLATEAU_MV 4375
-// Ladestand, bei dem die Grenze erreicht wird, und wie lange der Rest danach noch dauert
+// Ladestand, bei dem die Grenze erreicht wird, und wie lange die restlichen Prozent bis 100
+// danach noch dauern
 #define CHARGE_PLATEAU_PCT 91
 #define CHARGE_TAIL_MS (30 * 60 * MSEC_PER_SEC)
 
@@ -93,6 +94,7 @@ struct battery_filter_data {
     // Laden am USB-Kabel, siehe battery_filter_charging()
     bool charging;
     int64_t plateau_ts; // seit wann VDDH an der 4,4-V-Grenze steht, 0 = noch nicht
+    uint8_t plateau_pct; // Ladestand in dem Moment, ab dem die Zeit zaehlt
 };
 
 static bool underglow_is_on(void) {
@@ -214,33 +216,45 @@ static int read_median_mv(const struct device *source, int32_t *mv) {
 
 /*
  * Laden am USB-Kabel. Der Ladestand kommt aus charge_curve, solange VDDH noch steigt.
- * Steht VDDH an der 4,4-V-Grenze, fehlen der Zelle noch die letzten rund 9 %, und die
- * Spannung verraet nicht mehr, wie weit sie ist: von da an zaehlt die Zeit, 30 Minuten bis
- * 100 %. Ob der Ladechip wirklich fertig ist, zeigt nur seine LED.
+ *
+ * Steht VDDH an der 4,4-V-Grenze, hat die Zelle mindestens 91 %, und die Spannung verraet
+ * nicht mehr, wie weit sie ist - auch nicht, ob der Ladechip schon fertig ist. Was dann
+ * angezeigt wird, haengt davon ab, was vorher bekannt war:
+ *
+ *  - Die Grenze wurde in diesem Ladevorgang von unten erreicht: ab 91 % zaehlt die Zeit,
+ *    30 Minuten fuer die restlichen 9 %.
+ *  - Das Kabel kam bei laufender Tastatur dran: es geht mit dem Stand weiter, den die
+ *    Zelle davor ohne Kabel hatte. War sie voll, bleibt sie voll.
+ *  - Die Haelfte ist am Kabel gestartet und VDDH steht schon an der Grenze: dann haengt
+ *    sie vermutlich schon laenger am Ladegeraet, und sie gilt als voll. Das kann zu frueh
+ *    sein, wenn der Neustart genau in die letzte halbe Stunde des Ladens faellt.
  *
  * Waehrend eines Ladevorgangs faellt der Wert nie: das Underglow zieht VDDH etwas herunter,
  * und die Anzeige soll deshalb nicht rueckwaerts laufen.
  */
 static void battery_filter_charging(struct battery_filter_data *data, int32_t mv, int64_t now) {
     bool started = !data->charging;
+    // Stand der Zelle von vor dem Einstecken, falls es einen gibt
+    bool known = !started || data->have_value;
+    uint8_t before = known ? data->state_of_charge : 0;
+    uint8_t pct;
 
     data->filtered_mv = mv;
 
-    uint8_t pct;
-    if (data->filtered_mv >= CHARGE_PLATEAU_MV) {
+    if (mv >= CHARGE_PLATEAU_MV) {
         if (data->plateau_ts == 0) {
             data->plateau_ts = MAX(now, 1);
+            data->plateau_pct = known ? MAX(before, CHARGE_PLATEAU_PCT) : 100;
         }
         int64_t tail = MIN(now - data->plateau_ts, CHARGE_TAIL_MS);
-        pct = CHARGE_PLATEAU_PCT + (100 - CHARGE_PLATEAU_PCT) * tail / CHARGE_TAIL_MS;
+        pct = MIN(data->plateau_pct + (100 - CHARGE_PLATEAU_PCT) * tail / CHARGE_TAIL_MS, 100);
     } else {
         data->plateau_ts = 0;
-        pct = curve_pct(charge_curve, ARRAY_SIZE(charge_curve), data->filtered_mv);
+        pct = curve_pct(charge_curve, ARRAY_SIZE(charge_curve), mv);
     }
 
     // 1 liest das Display beim Laden als "Stand unbekannt"
-    pct = MAX(pct, 2);
-    data->state_of_charge = started ? pct : MAX(data->state_of_charge, pct);
+    data->state_of_charge = MAX(MAX(pct, before), 2);
 
     data->charging = true;
     data->have_value = true;
