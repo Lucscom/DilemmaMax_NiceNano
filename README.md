@@ -342,7 +342,6 @@ The menu has three pages:
 | Power | `Light` | underglow off after that time without input | 10 s, 30 s, 1, 2, 5 min, never |
 | | `Display` | 3.3 V rail off: LEDs unpowered, display dark, trackpad off | 30 s, 1, 2, 5, 10 min, never |
 | | `Sleep` | deep sleep on both halves | 1, 2, 5, 10, 30 min, never |
-| | `Saving` | power saving mode: rail off for good on both halves, also on USB | off, on |
 | Touch | `Speed` | cursor speed, 3 is the former fixed ratio | 1 to 5 |
 | | `Scroll` | scroll speed | 1 to 5 |
 | | `Invert` | reverses the scroll direction | off, on |
@@ -364,7 +363,8 @@ it is open the keymap's top layer (`MENU`) is active, where the encoder is
 bound to the menu and the NAV key to "back"; nothing is intercepted and all
 other keys keep working.
 
-In power saving mode there is no underglow, no display and no trackpad, only
+The top level also has `Saving`, the power saving mode: the 3.3 V rail stays
+off for good on both halves, also on USB. In power saving mode there is no underglow, no display and no trackpad, only
 keys and encoders. Since the display is dark, the way out is blind: hold NAV
 and press the left encoder, which ends the mode and opens the menu. The mode is
 one switch for all outputs and survives deep sleep.

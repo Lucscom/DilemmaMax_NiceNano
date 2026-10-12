@@ -72,13 +72,14 @@ static const struct entry root_entries[] = {
     {"Power", DILEMMA_MAX_ICON_POWER, KIND_PAGE, PAGE_POWER},
     {"Touch", DILEMMA_MAX_ICON_PAD, KIND_PAGE, PAGE_TOUCH},
     {"Input", DILEMMA_MAX_ICON_KNOB, KIND_PAGE, PAGE_INPUT},
+    // Power saving mode: steht ganz oben, weil er fuer alle Ausgaenge gilt
+    {"Saving", DILEMMA_MAX_ICON_BATTERY, KIND_ECO, 0},
 };
 
 static const struct entry power_entries[] = {
     {"Light", DILEMMA_MAX_ICON_SUN, KIND_POWER, DILEMMA_MAX_POWER_LIGHT},
     {"Display", DILEMMA_MAX_ICON_MONITOR, KIND_POWER, DILEMMA_MAX_POWER_RAIL},
     {"Sleep", DILEMMA_MAX_ICON_SLEEP, KIND_POWER, DILEMMA_MAX_POWER_SLEEP},
-    {"Saving", DILEMMA_MAX_ICON_POWER, KIND_ECO, 0},
 };
 
 static const struct entry touch_entries[] = {
