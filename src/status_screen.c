@@ -198,7 +198,8 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
  * Einstellungsmenue (src/menu.c): solange es offen ist, ersetzt es den oberen und den
  * mittleren Block. Der untere zeigt weiter den Layer, also "MENU".
  *
- * Eine Zeile pro Eintrag: links ein Symbol, daneben klein der Name und darunter der Wert.
+ * Gezeigt wird die offene Seite des Menues, hoechstens fuenf Eintraege. Eine Zeile pro
+ * Eintrag: links ein Symbol, daneben klein der Name und darunter der Wert.
  * Der gewaehlte Eintrag ist umrahmt und sein Symbol invertiert; rechts laeuft ein Balken
  * mit, der die Position zeigt.
  *
@@ -248,55 +249,36 @@ static void menu_text(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t x, lv_coo
     lv_canvas_draw_text(canvas, x, y - block_y, w, &dsc, text);
 }
 
-// Symbole, Pixel fuer Pixel um den Mittelpunkt (cx, cy) gesetzt. Reihenfolge wie die
-// Eintraege in src/menu.c: Licht, Schiene, Deep Sleep, Betriebssystem.
-static void menu_icon(lv_obj_t *canvas, lv_coord_t by, uint8_t item, lv_coord_t cx, lv_coord_t cy,
-                      lv_color_t c) {
-    switch (item) {
-    case 0: // Sonne
-        menu_rect(canvas, by, cx - 2, cy - 2, 5, 5, c);
-        menu_rect(canvas, by, cx, cy - 6, 1, 2, c);
-        menu_rect(canvas, by, cx, cy + 5, 1, 2, c);
-        menu_rect(canvas, by, cx - 6, cy, 2, 1, c);
-        menu_rect(canvas, by, cx + 5, cy, 2, 1, c);
-        menu_rect(canvas, by, cx - 4, cy - 4, 1, 1, c);
-        menu_rect(canvas, by, cx + 4, cy - 4, 1, 1, c);
-        menu_rect(canvas, by, cx - 4, cy + 4, 1, 1, c);
-        menu_rect(canvas, by, cx + 4, cy + 4, 1, 1, c);
-        break;
-    case 1: // Ein/Aus: offener Ring mit Strich
-        menu_rect(canvas, by, cx, cy - 6, 1, 6, c);
-        menu_rect(canvas, by, cx - 5, cy - 1, 1, 4, c);
-        menu_rect(canvas, by, cx + 5, cy - 1, 1, 4, c);
-        menu_rect(canvas, by, cx - 2, cy + 5, 5, 1, c);
-        menu_rect(canvas, by, cx - 4, cy - 2, 1, 1, c);
-        menu_rect(canvas, by, cx + 4, cy - 2, 1, 1, c);
-        menu_rect(canvas, by, cx - 3, cy - 3, 1, 1, c);
-        menu_rect(canvas, by, cx + 3, cy - 3, 1, 1, c);
-        menu_rect(canvas, by, cx - 4, cy + 3, 1, 1, c);
-        menu_rect(canvas, by, cx + 4, cy + 3, 1, 1, c);
-        menu_rect(canvas, by, cx - 3, cy + 4, 1, 1, c);
-        menu_rect(canvas, by, cx + 3, cy + 4, 1, 1, c);
-        break;
-    case 2: { // Mondsichel, aufrecht und oben wie unten gleich, 9x11 px, hoechstes Bit links
-        static const uint16_t moon[11] = {0x00c, 0x03c, 0x078, 0x0f8, 0x0f0, 0x1f0,
-                                          0x0f0, 0x0f8, 0x078, 0x03c, 0x00c};
-        for (int row = 0; row < 11; row++) {
-            for (int col = 0; col < 9; col++) {
-                if (moon[row] & BIT(8 - col)) {
-                    menu_rect(canvas, by, cx - 3 + col, cy - 5 + row, 1, 1, c);
-                }
+// Symbole, 11x11 px, eine Zeile pro Wert, hoechstes der elf Bits links
+#define MENU_ICON_SIZE 11
+
+static const uint16_t menu_icons[DILEMMA_MAX_ICON_COUNT][MENU_ICON_SIZE] = {
+    [DILEMMA_MAX_ICON_SUN] = {0x020, 0x222, 0x104, 0x070, 0x0f8, 0x6fb, 0x0f8, 0x070, 0x104, 0x222, 0x020},
+    [DILEMMA_MAX_ICON_POWER] = {0x020, 0x020, 0x1ac, 0x326, 0x222, 0x421, 0x401, 0x401, 0x202, 0x306, 0x0f8},
+    [DILEMMA_MAX_ICON_MOON] = {0x018, 0x078, 0x0f0, 0x1f0, 0x1e0, 0x3e0, 0x1e0, 0x1f0, 0x0f0, 0x078, 0x018},
+    [DILEMMA_MAX_ICON_MONITOR] = {0x7ff, 0x401, 0x401, 0x401, 0x401, 0x401, 0x7ff, 0x070, 0x070, 0x1fc, 0x000},
+    [DILEMMA_MAX_ICON_PAD] = {0x3fe, 0x401, 0x401, 0x461, 0x461, 0x401, 0x401, 0x7ff, 0x421, 0x421, 0x3fe},
+    [DILEMMA_MAX_ICON_KNOB] = {0x0f8, 0x104, 0x222, 0x421, 0x421, 0x401, 0x401, 0x401, 0x202, 0x104, 0x0f8},
+    [DILEMMA_MAX_ICON_CURSOR] = {0x400, 0x600, 0x700, 0x780, 0x7c0, 0x7e0, 0x7f0, 0x7c0, 0x6c0, 0x460, 0x060},
+    [DILEMMA_MAX_ICON_SCROLL] = {0x020, 0x070, 0x0f8, 0x020, 0x020, 0x020, 0x020, 0x020, 0x0f8, 0x070, 0x020},
+    [DILEMMA_MAX_ICON_INVERT] = {0x100, 0x380, 0x7c4, 0x104, 0x104, 0x104, 0x104, 0x104, 0x11f, 0x00e, 0x004},
+    [DILEMMA_MAX_ICON_GLIDE] = {0x000, 0x780, 0x00e, 0x3df, 0x01f, 0x7df, 0x01f, 0x3df, 0x00e, 0x780, 0x000},
+    [DILEMMA_MAX_ICON_TAP] = {0x0f8, 0x104, 0x202, 0x471, 0x4f9, 0x4f9, 0x4f9, 0x471, 0x202, 0x104, 0x0f8},
+};
+
+static void menu_icon(lv_obj_t *canvas, lv_coord_t block_y, uint8_t icon, lv_coord_t cx,
+                      lv_coord_t cy, lv_color_t color) {
+    if (icon >= DILEMMA_MAX_ICON_COUNT) {
+        return;
+    }
+
+    for (int row = 0; row < MENU_ICON_SIZE; row++) {
+        for (int col = 0; col < MENU_ICON_SIZE; col++) {
+            if (menu_icons[icon][row] & BIT(MENU_ICON_SIZE - 1 - col)) {
+                menu_rect(canvas, block_y, cx - MENU_ICON_SIZE / 2 + col,
+                          cy - MENU_ICON_SIZE / 2 + row, 1, 1, color);
             }
         }
-        break;
-    }
-    case 3: // Bildschirm
-        menu_frame(canvas, by, cx - 6, cy - 6, 13, 9, c);
-        menu_rect(canvas, by, cx - 1, cy + 3, 3, 2, c);
-        menu_rect(canvas, by, cx - 3, cy + 5, 7, 1, c);
-        break;
-    default:
-        break;
     }
 }
 
@@ -305,7 +287,9 @@ static void draw_menu(lv_obj_t *canvas, lv_color_t cbuf[], lv_coord_t block_y) {
 
     menu_rect(canvas, block_y, 0, block_y, BLOCK_SIZE, BLOCK_SIZE, COLOR_BG);
 
-    for (uint8_t item = 0; item < DILEMMA_MAX_MENU_ITEM_COUNT; item++) {
+    uint8_t count = MIN(dilemma_max_menu_item_count(), DILEMMA_MAX_MENU_MAX_ITEMS);
+
+    for (uint8_t item = 0; item < count; item++) {
         lv_coord_t y = item * MENU_ROW_HEIGHT;
         bool selected = item == cursor;
         char label[9];
@@ -318,7 +302,8 @@ static void draw_menu(lv_obj_t *canvas, lv_color_t cbuf[], lv_coord_t block_y) {
             menu_rect(canvas, block_y, MENU_ICON_X, y + 2, MENU_ICON_W, MENU_ICON_H + 1,
                       COLOR_FG);
         }
-        menu_icon(canvas, block_y, item, MENU_ICON_X + MENU_ICON_W / 2, y + 13,
+        menu_icon(canvas, block_y, dilemma_max_menu_item_icon(item),
+                  MENU_ICON_X + MENU_ICON_W / 2, y + 13,
                   selected ? COLOR_BG : COLOR_FG);
 
         menu_text(canvas, block_y, MENU_TEXT_X, y + 1, MENU_TEXT_W, COLOR_FG,
@@ -328,8 +313,7 @@ static void draw_menu(lv_obj_t *canvas, lv_color_t cbuf[], lv_coord_t block_y) {
     }
 
     // Positionsbalken
-    menu_rect(canvas, block_y, MENU_BAR_X + 1, 0, 1,
-              DILEMMA_MAX_MENU_ITEM_COUNT * MENU_ROW_HEIGHT - 1, COLOR_FG);
+    menu_rect(canvas, block_y, MENU_BAR_X + 1, 0, 1, count * MENU_ROW_HEIGHT - 1, COLOR_FG);
     menu_rect(canvas, block_y, MENU_BAR_X, cursor * MENU_ROW_HEIGHT, 2, MENU_ROW_HEIGHT - 1,
               COLOR_FG);
 
@@ -474,10 +458,16 @@ static void draw_bottom(void) {
 
     const char *name = state.layer.name;
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
-    // Ohne weiteren Layer steht hier das Betriebssystem des Ausgangs: unter Windows ist der
-    // WIN-Layer aktiv und heisst so, auf dem Mac gibt es nur den Basis-Layer.
-    if (state.layer.index == DM_LAYER_BASE) {
-        name = "MAC";
+    // Unterhalb von NAV liegen nur Layer, die die Firmware selbst schaltet (WIN, Funktion
+    // des Encoders). Dort steht das Betriebssystem des gewaehlten Ausgangs.
+    if (state.layer.index < DM_LAYER_NAV) {
+        name = dilemma_max_os_is_windows() ? "WIN" : "MAC";
+    }
+#endif
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+    // Im Menue: Name der offenen Seite
+    if (menu_is_open()) {
+        name = dilemma_max_menu_title();
     }
 #endif
 
@@ -625,12 +615,13 @@ ZMK_SUBSCRIPTION(layer_status, zmk_layer_state_changed);
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
 // Menue geoeffnet, geschlossen oder veraendert: beide Bloecke neu, auf der Display-Workqueue
 static void menu_redraw_work_cb(struct k_work *work) {
-    if (top_canvas == NULL || middle_canvas == NULL) {
+    if (top_canvas == NULL || middle_canvas == NULL || bottom_canvas == NULL) {
         return;
     }
     draw_top();
     draw_middle();
     middle_canvas_drawn = true;
+    draw_bottom();
 }
 
 static K_WORK_DEFINE(menu_redraw_work, menu_redraw_work_cb);

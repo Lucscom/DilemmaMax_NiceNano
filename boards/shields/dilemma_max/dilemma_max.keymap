@@ -19,6 +19,13 @@
             tap-ms = <25>;
         };
 
+        // Linker Encoder als Helligkeitsregler (Menue: Input > Knob > light)
+        light_encoder: light_encoder {
+            compatible = "zmk,behavior-sensor-rotate-var";
+            #sensor-binding-cells = <2>;
+            bindings = <&rgb_ug>, <&rgb_ug>;
+        };
+
         // Linker Encoder im Einstellungsmenue: drehen waehlt den Eintrag
         menu_enc: menu_enc {
             compatible = "zmk,behavior-sensor-rotate-var";
@@ -72,7 +79,8 @@
         compatible = "zmk,keymap";
 
         // Die Reihenfolge der Layer ist in dt-bindings/dilemma_max/layers.h festgelegt:
-        // BASE, WIN, NAV, NAV_WIN, MENU. Die Firmware schaltet WIN und MENU selbst.
+        // BASE, WIN, KNOB_SCROLL, KNOB_LIGHT, NAV, NAV_WIN, MENU. Die Firmware schaltet WIN,
+        // die beiden KNOB-Layer und MENU selbst.
         default_layer {
             display-name = "BASE";
             // Deutsches QWERTZ-Layout (OS auf Deutsch eingestellt)
@@ -117,6 +125,36 @@
             >;
         };
 
+        // Layer DM_LAYER_KNOB_SCROLL (2) und DM_LAYER_KNOB_LIGHT (3): Funktion des linken
+        // Encoders, gewaehlt im Menue unter Input > Knob. Die Firmware schaltet den passenden
+        // Layer ein; ist keiner aktiv, regelt der Encoder die Lautstaerke (default_layer).
+        // Der rechte Encoder bleibt, wie er ist. Mit NAV gilt wieder die Belegung von NAV.
+        knob_scroll_layer {
+            display-name = "SCROLL";
+            bindings = <
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                                &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans
+            >;
+
+            sensor-bindings = <&scroll_encoder SCRL_DOWN SCRL_UP &scroll_encoder SCRL_DOWN SCRL_UP>;
+        };
+
+        knob_light_layer {
+            display-name = "LIGHT";
+            bindings = <
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                                &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans
+            >;
+
+            sensor-bindings = <&light_encoder RGB_BRD_CMD RGB_BRI_CMD &scroll_encoder SCRL_DOWN SCRL_UP>;
+        };
+
         nav_layer {
             display-name = "NAV";
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
@@ -148,7 +186,7 @@
             sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_LEFT SCRL_RIGHT>;
         };
 
-        // Layer DM_LAYER_NAV_WIN (3): NAV unter Windows, schaltet sich ueber conditional_layers
+        // Layer DM_LAYER_NAV_WIN (5): NAV unter Windows, schaltet sich ueber conditional_layers
         // von selbst ein. Ersetzt die Mac-Sondertasten: Diktat (Win+H) statt Globe,
         // Task-Ansicht (Win+Tab) statt Mission Control.
         nav_win_layer {
@@ -162,10 +200,11 @@
             >;
         };
 
-        // Layer DM_LAYER_MENU (4): aktiv, solange das Einstellungsmenue auf dem Display offen
-        // ist. Oeffnen und schliessen: NAV halten und den linken Encoder druecken. Im Menue:
-        // drehen = Eintrag waehlen, druecken = Wert weiterschalten. Nach 20 s Pause geht es
-        // von selbst zu. Alle anderen Tasten bleiben, wie sie sind.
+        // Layer DM_LAYER_MENU (6): aktiv, solange das Einstellungsmenue auf dem Display offen
+        // ist. Oeffnen: NAV halten und den linken Encoder druecken. Im Menue: drehen = Eintrag
+        // waehlen, druecken = Untermenue oeffnen oder Wert weiterschalten, NAV + druecken =
+        // zurueck bzw. schliessen. Nach 20 s Pause geht es von selbst zu. Alle anderen Tasten
+        // bleiben, wie sie sind.
         menu_layer {
             display-name = "MENU";
             bindings = <

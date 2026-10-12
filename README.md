@@ -333,16 +333,38 @@ powered on while the left half was idle.
 
 ZMK's idle and sleep timeouts are compiled in. `src/power.c` on the left half
 runs its own clock since the last input instead (keys of both halves, encoders,
-trackpad) and applies three timeouts that can be changed on the display:
+trackpad) and applies three timeouts that can be changed on the display.
 
-| Entry | What happens after that time without input | Values |
-|---|---|---|
-| `LIGHT` | underglow off on both halves | 10 s, 30 s, 1, 2, 5 min, never |
-| `POWER` | 3.3 V rail off: LEDs unpowered, display dark, trackpad off | 30 s, 1, 2, 5, 10 min, never |
-| `SLEEP` | deep sleep on both halves | 1, 2, 5, 10, 30 min, never |
-| `OS` | Mac or Windows for the output currently selected | mac, win |
+The menu has three pages:
 
-Defaults are 30 s, 30 s and 5 min. The values are stored in the settings.
+| Page | Entry | Effect | Values |
+|---|---|---|---|
+| Power | `Light` | underglow off after that time without input | 10 s, 30 s, 1, 2, 5 min, never |
+| | `Display` | 3.3 V rail off: LEDs unpowered, display dark, trackpad off | 30 s, 1, 2, 5, 10 min, never |
+| | `Sleep` | deep sleep on both halves | 1, 2, 5, 10, 30 min, never |
+| Touch | `Speed` | cursor speed, 3 is the former fixed ratio | 1 to 5 |
+| | `Scroll` | scroll speed | 1 to 5 |
+| | `Invert` | reverses the scroll direction | off, on |
+| | `Glide` | scrolling coasts after lifting the fingers | on, off |
+| | `Tap` | tapping the pad clicks | on, off |
+| Input | `Knob` | left encoder: volume, scrolling or underglow brightness | vol, scrl, light |
+| | `OS` | Mac or Windows for the output currently selected | mac, win |
+
+Power defaults are 30 s, 30 s and 5 min. All values are stored in the settings.
+
+Hold NAV and press the left encoder to open the menu. Turning selects an entry,
+pressing opens a page or steps a value, NAV plus a press goes back one level
+and closes the menu from the top level; 20 s without input closes it too. While
+it is open the keymap's top layer (`MENU`) is active, where the encoder is
+bound to the `&menu` behavior from `src/menu.c`; nothing is intercepted and all
+other keys keep working.
+
+Where the Touch and Input settings take effect: speed and direction are applied
+on the left half by the `pad_tune` input processor (`src/pad_tune.c`), which
+replaces the fixed `zip_xy_scaler`. `Glide` and `Tap` are decided by the
+trackpad driver on the right half, so the left half sends them along with the
+underglow state. `Knob` switches one of two keymap layers that only rebind the
+left encoder.
 
 `OS` is stored per output: each Bluetooth profile and USB has its own value, so
 switching profiles switches the keyboard along with it. A keyboard cannot
@@ -352,12 +374,6 @@ and GUI stay where they are), NAV gets Win+H and Win+Tab in place of Globe and
 Mission Control, and the trackpad gestures send the shortcuts from
 `keycodes-win` (virtual desktops, task view, show desktop, Ctrl zoom). The
 layer order is fixed in `include/dt-bindings/dilemma_max/layers.h`.
-
-To open or close the menu, hold NAV and press the left encoder. Turning selects
-an entry, pressing steps its value, and 20 s without input closes it. While
-it is open the keymap's top layer (`MENU`) is active, where the encoder is bound
-to the `&menu` behavior from `src/menu.c`; nothing is intercepted and all other
-keys keep working.
 
 The right half has no clock of its own. The left half commands its underglow,
 its rail and its deep sleep, because only the central sees the input of both

@@ -12,6 +12,7 @@
 
 #include "input_maxtouch.h"
 #include <dt-bindings/dilemma_max/gestures.h>
+#include <dilemma_max/trackpad.h>
 
 LOG_MODULE_REGISTER(maxtouch, CONFIG_INPUT_LOG_LEVEL);
 
@@ -195,6 +196,21 @@ static void mxt_click(const struct device *dev, uint16_t code) {
     data->button_held = true;
     input_report_key(dev, code, 1, true, K_NO_WAIT);
     k_work_schedule(&data->click_release_work, K_MSEC(MXT_CLICK_RELEASE_MS));
+}
+
+// Klick durch Tippen: laesst sich im Menue abschalten (Touch > Tap). Der Seitenwechsel per
+// Zwei-Finger-Wischer ist kein Tippen und ruft mxt_click() direkt.
+static void mxt_tap(const struct device *dev, uint16_t code) {
+    struct mxt_data *data = dev->data;
+    if (data->tap_enabled) {
+        mxt_click(dev, code);
+    }
+}
+
+void mxt_set_options(const struct device *dev, bool tap, bool momentum) {
+    struct mxt_data *data = dev->data;
+    data->tap_enabled = tap;
+    data->momentum_enabled = momentum;
 }
 
 // Der Chip misst im Free-Run und liefert bis zu 300 Positionen/s. Jede davon wird zu zwei
@@ -737,13 +753,13 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
                 LOG_INF("gesture: drag end (second_tap=%d)", second_tap);
                 mxt_button_release(data);
                 if (second_tap) {
-                    mxt_click(dev, INPUT_BTN_0); // Doppelklick
+                    mxt_tap(dev, INPUT_BTN_0); // Doppelklick
                 }
             } else if (data->gesture_max_fingers >= 3) {
                 LOG_INF("gesture: 3-finger end dx=%d dy=%d dur=%u", data->gesture_dx,
                         data->gesture_dy, dur);
                 if (!data->gesture_moved && !data->swipe_fired && dur <= MXT_TAP2_MAX_MS) {
-                    mxt_click(dev, INPUT_BTN_2); // Drei-Finger-Tap = Mittelklick
+                    mxt_tap(dev, INPUT_BTN_2); // Drei-Finger-Tap = Mittelklick
                 }
             } else if (data->gesture_max_fingers == 2 && !data->swipe_fired &&
                        dur <= MXT_FLICK_MAX_MS &&
@@ -754,7 +770,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
                 LOG_INF("gesture: page %s (dx=%d dur=%u)",
                         data->gesture_dx > 0 ? "back" : "forward", data->gesture_dx, dur);
                 mxt_click(dev, data->gesture_dx > 0 ? MXT_BTN_PAGE_BACK : MXT_BTN_PAGE_FORWARD);
-            } else if (config->scroll_momentum && data->gesture_max_fingers >= 2 &&
+            } else if (data->momentum_enabled && data->gesture_max_fingers >= 2 &&
                        data->gesture_moved &&
                        (mxt_abs32(data->scroll_vel_x) + mxt_abs32(data->scroll_vel_y)) >=
                            MXT_MOMENTUM_START_VEL &&
@@ -771,9 +787,9 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
                 bool two_finger_tap = data->gesture_max_fingers == 2 && !data->swipe_fired &&
                                       (!data->gesture_moved || dur <= MXT_TAP2_IGNORE_MOVE_MS);
                 if (data->gesture_max_fingers == 1 && !data->gesture_moved && dur <= max_ms) {
-                    mxt_click(dev, INPUT_BTN_0);
+                    mxt_tap(dev, INPUT_BTN_0);
                 } else if (two_finger_tap && dur <= max_ms) {
-                    mxt_click(dev, INPUT_BTN_1);
+                    mxt_tap(dev, INPUT_BTN_1);
                 }
             }
         }
@@ -1519,6 +1535,8 @@ static int mxt_init(const struct device *dev) {
     int ret;
 
     data->dev = dev;
+    data->tap_enabled = true;
+    data->momentum_enabled = config->scroll_momentum;
 
     LOG_INF("maxtouch init: i2c addr 0x%02x, deferring probe by %dms", config->bus.addr,
             MXT_INIT_FIRST_DELAY_MS);

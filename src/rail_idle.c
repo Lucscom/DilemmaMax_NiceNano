@@ -44,7 +44,9 @@
 #include <zephyr/pm/device.h>
 #include <zephyr/sys/poweroff.h>
 
+#include <dilemma_max/input.h>
 #include <dilemma_max/power.h>
+#include <dilemma_max/trackpad.h>
 #include <drivers/behavior.h>
 #include <zmk/activity.h>
 #include <zmk/pm.h>
@@ -210,7 +212,8 @@ SYS_INIT(rail_idle_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
 
 /*
  * Behavior, ueber das das Central diese Haelfte schaltet: param1 ist DILEMMA_MAX_RAIL_OFF,
- * _ON oder _SLEEP. Nicht fuer die Keymap gedacht.
+ * _ON oder _SLEEP, oder DILEMMA_MAX_PAD_OPTIONS mit den Schaltern des Trackpad-Treibers.
+ * Nicht fuer die Keymap gedacht.
  */
 static int rail_power_binding_pressed(struct zmk_behavior_binding *binding,
                                       struct zmk_behavior_binding_event event) {
@@ -227,6 +230,14 @@ static int rail_power_binding_pressed(struct zmk_behavior_binding *binding,
         break;
 #endif
     default:
+#if HAS_TRACKPAD
+        // Schalter des Trackpad-Treibers, siehe dilemma_max/input.h
+        if ((binding->param1 & ~(DILEMMA_MAX_PAD_OPTION_TAP | DILEMMA_MAX_PAD_OPTION_GLIDE)) ==
+            DILEMMA_MAX_PAD_OPTIONS) {
+            mxt_set_options(trackpad, binding->param1 & DILEMMA_MAX_PAD_OPTION_TAP,
+                            binding->param1 & DILEMMA_MAX_PAD_OPTION_GLIDE);
+        }
+#endif
         break;
     }
 

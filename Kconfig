@@ -199,17 +199,32 @@ config DILEMMA_MAX_MENU
     default y
     depends on DT_HAS_DILEMMA_BEHAVIOR_MENU_ENABLED
     depends on DILEMMA_MAX_POWER && DILEMMA_MAX_STATUS_SCREEN
+    depends on DILEMMA_MAX_INPUT_SETTINGS && DILEMMA_MAX_OS_MODE
     help
-      Menue fuer die Zeiten aus CONFIG_DILEMMA_MAX_POWER, bedient mit dem linken Encoder
-      ueber das Behavior &menu (src/menu.c). Die Keymap braucht dafuer einen eigenen
-      Layer, siehe DM_MENU_LAYER in dt-bindings/dilemma_max/menu.h.
+      Menue mit Untermenues fuer Stromsparen, Trackpad und Bedienung, bedient mit dem
+      linken Encoder ueber das Behavior &menu (src/menu.c). Die Keymap braucht dafuer
+      einen eigenen Layer, siehe DM_LAYER_MENU in dt-bindings/dilemma_max/layers.h.
 
 config DILEMMA_MAX_OS_MODE
     bool "Mac oder Windows pro Bluetooth-Profil"
     default y
-    depends on DILEMMA_MAX_MENU && ZMK_BLE && SETTINGS
+    depends on ZMK_BLE && SETTINGS && (!ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL)
+    depends on DILEMMA_MAX_STATUS_SCREEN
     help
       Merkt sich pro Ausgang (Bluetooth-Profile und USB), ob dort ein Mac oder ein
       Windows-Rechner haengt (src/os_mode.c), einstellbar im Menue. Fuer Windows ist der
       Layer DM_LAYER_WIN der Keymap aktiv, und die Trackpad-Gesten nehmen die Kuerzel aus
       keycodes-win des gesture_keys-Knotens.
+
+config DILEMMA_MAX_INPUT_SETTINGS
+    bool "Einstellungen fuer Trackpad und Encoder"
+    default y
+    depends on DILEMMA_MAX_POWER && DT_HAS_DILEMMA_INPUT_PROCESSOR_PAD_TUNE_ENABLED
+    help
+      Cursor- und Scroll-Geschwindigkeit, Scroll-Richtung, Tippen und Auslaufen des
+      Trackpads und die Funktion des linken Encoders, einstellbar im Menue und in den
+      Settings abgelegt (src/input_settings.c). Die Geschwindigkeiten rechnet der
+      Input-Processor pad_tune ein (src/pad_tune.c), der im Trackpad-Listener anstelle
+      des zip_xy_scaler steht.
+
+      Die Keymap braucht die Layer DM_LAYER_KNOB_SCROLL und DM_LAYER_KNOB_LIGHT.

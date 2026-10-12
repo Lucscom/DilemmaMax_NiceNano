@@ -32,6 +32,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
 
+#include <dilemma_max/input.h>
 #include <dilemma_max/power.h>
 #include <dt-bindings/zmk/rgb.h>
 #include <zmk/activity.h>
@@ -102,6 +103,12 @@ static void rgb_split_sync_send(bool on) {
     if (!rail_on) {
         split_sync_invoke(RAIL_PWR_DEV, DILEMMA_MAX_RAIL_OFF);
     }
+
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_INPUT_SETTINGS)
+    // Tippen und Auslaufen des Trackpads: die rechte Haelfte merkt sich das nicht selbst und
+    // braucht es nach jedem Neustart wieder
+    split_sync_invoke(RAIL_PWR_DEV, dilemma_max_input_pad_options());
+#endif
 #else
     split_sync_invoke(RGB_UG_DEV, on ? RGB_ON_CMD : RGB_OFF_CMD);
 #endif
