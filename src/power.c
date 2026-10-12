@@ -37,6 +37,7 @@
 #include <zmk/rgb_underglow.h>
 
 #if IS_ENABLED(CONFIG_ZMK_USB)
+#include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/usb.h>
 #endif
 
@@ -145,7 +146,9 @@ static void eval_work_cb(struct k_work *work) {
     bool want_remote_rail_off = rail_s != 0 && idle_s >= rail_s;
     // Ohne Schiene leuchtet nichts, also spaetestens dann auch das Licht aus
     bool want_dim = (light_s != 0 && idle_s >= light_s) || want_remote_rail_off;
-    bool want_rail_off = want_remote_rail_off && !usb;
+    // Am Kabel bleibt die Schiene an, es sei denn, das ist zum Testen abgestellt
+    bool want_rail_off =
+        want_remote_rail_off && !(usb && IS_ENABLED(CONFIG_DILEMMA_MAX_POWER_RAIL_ON_USB));
 
     bool changed = want_dim != dimmed || want_remote_rail_off != remote_rail_off;
 
@@ -197,6 +200,11 @@ static int power_activity_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(dilemma_max_power, power_activity_listener);
 ZMK_SUBSCRIPTION(dilemma_max_power, zmk_position_state_changed);
 ZMK_SUBSCRIPTION(dilemma_max_power, zmk_sensor_event);
+#if IS_ENABLED(CONFIG_ZMK_USB)
+// Kabel gesteckt oder gezogen zaehlt als Eingabe: sonst liefe die Uhr am Kabel weiter, und
+// nach dem Abziehen ginge das Display sofort aus.
+ZMK_SUBSCRIPTION(dilemma_max_power, zmk_usb_conn_state_changed);
+#endif
 
 // Trackpad: kommt ueber den Split-Link als Input-Event an. Laeuft im Input-Thread.
 static void power_input_listener(struct input_event *ev) { note_activity(); }

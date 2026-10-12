@@ -17,6 +17,7 @@
  *  - ohne Split-Verbindung ist die Schiene aus, beim Verbinden geht sie an,
  *  - in den Deep Sleep geht die Haelfte auf Kommando des Centrals, oder von selbst, wenn
  *    sie zwei Minuten lang keine Verbindung hat.
+ *  - haengt sie selbst am Ladekabel, bleibt die Schiene an und sie schlaeft nicht.
  *
  * Was mit der Schiene ausgeht und wieder anlaufen muss:
  *  - Trackpad: der Treiber wird per PM SUSPEND stillgelegt und initialisiert den Chip bei
@@ -148,6 +149,7 @@ void dilemma_max_sleep_now(void) {
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
 
+#include <dilemma_max/battery.h>
 #include <zmk/events/split_peripheral_status_changed.h>
 
 #if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
@@ -158,26 +160,75 @@ void dilemma_max_sleep_now(void) {
 #define ORPHAN_SLEEP_DELAY K_SECONDS(120)
 // Kurz warten, damit das Kommando noch quittiert wird
 #define COMMAND_SLEEP_DELAY K_MSEC(200)
+// So oft wird nachgesehen, ob das Ladekabel gesteckt oder gezogen wurde
+#define USB_POLL K_SECONDS(5)
 
-static void sleep_work_cb(struct k_work *work) {
-#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
-    // Wie ZMK: am Kabel wird nicht geschlafen (und das USB-Log bleibt erreichbar)
-    if (zmk_usb_is_powered()) {
-        return;
+// Was Central, Verbindung und eigene Tasten zuletzt fuer die Schiene ergeben haben
+static bool rail_wanted_by_split = true;
+// Das Central (oder die fehlende Verbindung) hat Deep Sleep verlangt, das Kabel hielt wach
+static bool sleep_pending;
+
+/*
+ * Haengt diese Haelfte am Ladekabel, bleibt die Schiene an und sie schlaeft nicht - wie
+ * links. Am Kabel muss nichts gespart werden, und Trackpad und Beleuchtung bleiben so
+ * benutzbar. Die VBUS-Erkennung des nRF52840 sieht auch ein reines Ladegeraet.
+ */
+static bool local_usb_powered(void) {
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT)
+    if (dilemma_max_usb_powered()) {
+        return true;
     }
 #endif
+#if IS_ENABLED(CONFIG_USB_DEVICE_STACK)
+    if (zmk_usb_is_powered()) {
+        return true;
+    }
+#endif
+    return false;
+}
+
+static void peripheral_rail_apply(void) {
+    dilemma_max_rail_set(rail_wanted_by_split || local_usb_powered());
+}
+
+static void peripheral_rail_command(bool on) {
+    rail_wanted_by_split = on;
+    peripheral_rail_apply();
+}
+
+static void sleep_work_cb(struct k_work *work) {
+    if (local_usb_powered()) {
+        // Nachholen, sobald das Kabel ab ist (usb_poll_work)
+        sleep_pending = true;
+        return;
+    }
     dilemma_max_sleep_now();
 }
 
 static K_WORK_DELAYABLE_DEFINE(sleep_work, sleep_work_cb);
+
+static void usb_poll_work_cb(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(usb_poll_work, usb_poll_work_cb);
+
+static void usb_poll_work_cb(struct k_work *work) {
+    peripheral_rail_apply();
+
+    if (sleep_pending && !local_usb_powered()) {
+        sleep_pending = false;
+        k_work_reschedule(&sleep_work, COMMAND_SLEEP_DELAY);
+    }
+
+    k_work_schedule(&usb_poll_work, USB_POLL);
+}
 
 static int rail_idle_listener(const zmk_event_t *eh) {
     const struct zmk_split_peripheral_status_changed *status =
         as_zmk_split_peripheral_status_changed(eh);
 
     if (status != NULL) {
-        dilemma_max_rail_set(status->connected);
+        peripheral_rail_command(status->connected);
         if (status->connected) {
+            sleep_pending = false;
             k_work_cancel_delayable(&sleep_work);
         } else {
             k_work_reschedule(&sleep_work, ORPHAN_SLEEP_DELAY);
@@ -190,7 +241,8 @@ static int rail_idle_listener(const zmk_event_t *eh) {
     // Nur einschalten. Ausgeschaltet wird auf Kommando des Centrals: diese Haelfte ist auch
     // dann "idle", wenn gerade links getippt wird.
     if (activity != NULL && activity->state == ZMK_ACTIVITY_ACTIVE) {
-        dilemma_max_rail_set(true);
+        sleep_pending = false;
+        peripheral_rail_command(true);
     }
 
     return ZMK_EV_EVENT_BUBBLE;
@@ -203,6 +255,7 @@ ZMK_SUBSCRIPTION(dilemma_max_rail_idle, zmk_split_peripheral_status_changed);
 // Nach dem Start ist noch nichts verbunden, und ein "getrennt" kommt dann nie
 static int rail_idle_init(void) {
     k_work_reschedule(&sleep_work, ORPHAN_SLEEP_DELAY);
+    k_work_schedule(&usb_poll_work, USB_POLL);
     return 0;
 }
 
@@ -218,13 +271,13 @@ SYS_INIT(rail_idle_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
 static int rail_power_binding_pressed(struct zmk_behavior_binding *binding,
                                       struct zmk_behavior_binding_event event) {
     switch (binding->param1) {
+#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
     case DILEMMA_MAX_RAIL_OFF:
-        dilemma_max_rail_set(false);
+        peripheral_rail_command(false);
         break;
     case DILEMMA_MAX_RAIL_ON:
-        dilemma_max_rail_set(true);
+        peripheral_rail_command(true);
         break;
-#if IS_ENABLED(CONFIG_ZMK_SPLIT) && !IS_ENABLED(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
     case DILEMMA_MAX_RAIL_SLEEP:
         k_work_reschedule(&sleep_work, COMMAND_SLEEP_DELAY);
         break;

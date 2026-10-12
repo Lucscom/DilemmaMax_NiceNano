@@ -213,6 +213,16 @@ config DILEMMA_MAX_POWER
 
       Die rechte Haelfte wird vom Central kommandiert, auch in den Deep Sleep.
 
+config DILEMMA_MAX_POWER_RAIL_ON_USB
+    bool "3,3-V-Schiene des Centrals am USB-Kabel anlassen"
+    default y
+    depends on DILEMMA_MAX_POWER
+    help
+      Am Kabel muss nichts gespart werden, und das Display bleibt so lesbar. Mit n geht
+      die Schiene auch am Kabel nach der eingestellten Zeit aus - zum Testen der
+      Abschaltung, ohne auf Akku umstecken zu muessen. Der Deep Sleep bleibt am Kabel in
+      jedem Fall aus.
+
 config DILEMMA_MAX_MENU
     bool "Einstellungsmenue auf dem nice!view"
     default y

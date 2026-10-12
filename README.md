@@ -389,8 +389,8 @@ switch-off is disabled on both halves.
 The 51 LEDs draw their quiescent current even when dark, 20 to 35 mA per half,
 which was nearly all of an idle half's consumption. `src/rail_idle.c` switches
 the nice!nano's 3.3 V rail (P0.13) off after the `POWER` time from the menu
-above and back on with the next key press. The left half
-keeps the rail on while it is on USB so the display stays readable.
+above and back on with the next key press. Either half
+keeps its rail on and does not sleep while it is on a USB cable or charger.
 
 The right half follows the central: its own idle state only knows its own
 keys. The central sends the rail state together with the underglow state
