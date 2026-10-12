@@ -249,7 +249,7 @@ static void menu_text(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t x, lv_coo
 }
 
 // Symbole, Pixel fuer Pixel um den Mittelpunkt (cx, cy) gesetzt. Reihenfolge wie die
-// Eintraege in src/menu.c: Licht, Schiene, Deep Sleep, Betriebssystem, Akku.
+// Eintraege in src/menu.c: Licht, Schiene, Deep Sleep, Betriebssystem.
 static void menu_icon(lv_obj_t *canvas, lv_coord_t by, uint8_t item, lv_coord_t cx, lv_coord_t cy,
                       lv_color_t c) {
     switch (item) {
@@ -294,11 +294,6 @@ static void menu_icon(lv_obj_t *canvas, lv_coord_t by, uint8_t item, lv_coord_t 
         menu_frame(canvas, by, cx - 6, cy - 6, 13, 9, c);
         menu_rect(canvas, by, cx - 1, cy + 3, 3, 2, c);
         menu_rect(canvas, by, cx - 3, cy + 5, 7, 1, c);
-        break;
-    case 4: // Akku
-        menu_frame(canvas, by, cx - 6, cy - 3, 11, 7, c);
-        menu_rect(canvas, by, cx + 5, cy - 1, 2, 3, c);
-        menu_rect(canvas, by, cx - 4, cy - 1, 5, 3, c);
         break;
     default:
         break;

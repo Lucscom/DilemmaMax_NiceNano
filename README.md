@@ -341,7 +341,6 @@ trackpad) and applies three timeouts that can be changed on the display:
 | `POWER` | 3.3 V rail off: LEDs unpowered, display dark, trackpad off | 30 s, 1, 2, 5, 10 min, never |
 | `SLEEP` | deep sleep on both halves | 1, 2, 5, 10, 30 min, never |
 | `OS` | Mac or Windows for the output currently selected | mac, win |
-| `BATT` | shows the measured voltage of the left half | |
 
 Defaults are 30 s, 30 s and 5 min. The values are stored in the settings.
 

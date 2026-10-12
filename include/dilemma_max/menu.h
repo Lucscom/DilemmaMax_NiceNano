@@ -9,7 +9,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define DILEMMA_MAX_MENU_ITEM_COUNT 5
+#define DILEMMA_MAX_MENU_ITEM_COUNT 4
 
 bool dilemma_max_menu_is_open(void);
 uint8_t dilemma_max_menu_cursor(void);

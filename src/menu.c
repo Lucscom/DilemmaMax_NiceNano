@@ -25,7 +25,6 @@
 
 #include <drivers/behavior.h>
 #include <dt-bindings/dilemma_max/menu.h>
-#include <dilemma_max/battery.h>
 #include <dilemma_max/menu.h>
 #include <dilemma_max/os.h>
 #include <dilemma_max/power.h>
@@ -36,9 +35,8 @@ LOG_MODULE_REGISTER(dilemma_max_menu, CONFIG_ZMK_LOG_LEVEL);
 
 // Die ersten Eintraege sind die Zeiten aus dilemma_max/power.h, in derselben Reihenfolge
 #define ITEM_OS DILEMMA_MAX_POWER_ITEM_COUNT
-#define ITEM_BATT (DILEMMA_MAX_POWER_ITEM_COUNT + 1)
 
-BUILD_ASSERT(ITEM_BATT + 1 == DILEMMA_MAX_MENU_ITEM_COUNT);
+BUILD_ASSERT(ITEM_OS + 1 == DILEMMA_MAX_MENU_ITEM_COUNT);
 
 #define AUTO_CLOSE K_SECONDS(20)
 
@@ -88,7 +86,6 @@ void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, cha
     static const char *const labels[DILEMMA_MAX_MENU_ITEM_COUNT] = {
         [DILEMMA_MAX_POWER_LIGHT] = "Light", [DILEMMA_MAX_POWER_RAIL] = "Power",
         [DILEMMA_MAX_POWER_SLEEP] = "Sleep", [ITEM_OS] = "OS",
-        [ITEM_BATT] = "Batt mV",
     };
 
     label[0] = '\0';
@@ -104,11 +101,6 @@ void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, cha
     } else if (item == ITEM_OS) {
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
         snprintf(value, value_len, "%s", dilemma_max_os_is_windows() ? "win" : "mac");
-#endif
-    } else if (item == ITEM_BATT) {
-#if IS_ENABLED(CONFIG_DILEMMA_MAX_BATTERY_FILTER)
-        // Gemessene Spannung der linken Haelfte in mV; am USB-Kabel ist das die Versorgung
-        snprintf(value, value_len, "%d", (int)dilemma_max_battery_filter_mv());
 #endif
     }
 }
