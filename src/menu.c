@@ -75,7 +75,7 @@ static const struct entry root_entries[] = {
 static const struct entry power_entries[] = {
     {"Light", DILEMMA_MAX_ICON_SUN, KIND_POWER, DILEMMA_MAX_POWER_LIGHT},
     {"Display", DILEMMA_MAX_ICON_MONITOR, KIND_POWER, DILEMMA_MAX_POWER_RAIL},
-    {"Sleep", DILEMMA_MAX_ICON_MOON, KIND_POWER, DILEMMA_MAX_POWER_SLEEP},
+    {"Sleep", DILEMMA_MAX_ICON_SLEEP, KIND_POWER, DILEMMA_MAX_POWER_SLEEP},
 };
 
 static const struct entry touch_entries[] = {
