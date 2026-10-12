@@ -165,6 +165,25 @@ config DILEMMA_MAX_RAIL_IDLE
       Beide Haelften gehoeren zusammen geflasht: das Central schaltet die Schiene des
       Peripherals ueber ein eigenes Behavior.
 
+config DILEMMA_MAX_RAIL_IDLE
+    bool "3,3-V-Schiene im Idle abschalten"
+    default y
+    depends on DT_HAS_DILEMMA_BEHAVIOR_RAIL_POWER_ENABLED
+    depends on DT_HAS_ZMK_EXT_POWER_GENERIC_ENABLED
+    depends on PM_DEVICE && ZMK_SLEEP
+    help
+      Schaltet die geschaltete 3,3-V-Schiene des nice!nano ab, sobald 30 s nichts
+      eingegeben wurde (CONFIG_ZMK_IDLE_TIMEOUT), und beim naechsten Tastendruck wieder
+      ein (src/rail_idle.c). An der Schiene haengen die LEDs, das nice!view und das
+      Trackpad; allein der Ruhestrom der 51 LEDs liegt bei 20 bis 35 mA pro Haelfte.
+
+      Folgen: das Display ist im Idle dunkel, und das Trackpad kann die Tastatur nicht
+      mehr aufwecken. Nach einem Tastendruck braucht es etwa eine Sekunde, bis es wieder
+      reagiert.
+
+      Beide Haelften gehoeren zusammen geflasht: das Central schaltet die Schiene des
+      Peripherals ueber ein eigenes Behavior.
+
 config DILEMMA_MAX_BATTERY_CAPACITY_MAH
     int "Kapazitaet des Akkus einer Haelfte in mAh"
     default 220

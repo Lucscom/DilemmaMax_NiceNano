@@ -424,18 +424,21 @@ taken with the LEDs lit. The result is low-pass filtered and the percentage
 only moves in steps of two. The drop is learned again after every boot, so the
 reading can be a few percent low until the half has gone idle once.
 
-On USB the VDDH pin carries the supply, a constant 4385 to 4390 mV, not the
-battery, and the charger chip does not report its progress. The level shown
-while charging is therefore an estimate: the level at plug-in plus charge
-current times elapsed time over capacity (`CONFIG_DILEMMA_MAX_CHARGE_CURRENT_MA`,
-`CONFIG_DILEMMA_MAX_BATTERY_CAPACITY_MAH`, 100 mA and 220 mAh), at half speed
-above 80 % and capped at 99 %. Only the charge LED says when the cell is full.
-A half that boots on USB does not know its level at plug-in and shows an empty
-frame with the bolt until it is unplugged.
+On USB the VDDH pin does not show the cell but the output of the charger chip,
+which runs about 225 mV above the cell, from 3.4 V up to a limit of 4.4 V. A
+recorded charge of the left half from empty to full (220 mAh cell, 100 mA)
+showed the voltage rising steadily for just under 120 minutes and then sitting
+at 4385 mV. Up to that point the chip charges with constant current, so time is
+charge: 120 min x 100 mA is 200 mAh, 91 % of the cell.
 
-The percentage comes from a typical LiPo discharge curve instead of ZMK's
-straight line, with 100 % at 4120 mV: a full cell measured 4140 mV right after
-unplugging, which the straight line called 93 %.
+While charging, the level comes from that recording (`charge_curve` in
+`src/battery_filter.c`). Once the voltage sits at the limit, the remaining 9 %
+are counted by time, 30 minutes to 100 %. Only the charge LED says when the
+chip is really done.
+
+On battery, the level comes from `discharge_curve`. It is derived from the same
+recording, 275 mV lower, not measured; only its top point is, a full cell read
+4140 mV right after unplugging. The low end is the least certain part.
 
 The filter never reports 0 %: that value means "not connected" on the display.
 

@@ -28,6 +28,9 @@
  *
  * 0 % wird nie gemeldet, das Minimum ist 1: der Wert 0 steht im Split-Protokoll und auf
  * dem Display fuer "nicht verbunden".
+ *
+ * Am USB-Kabel gilt das alles nicht: dort misst VDDH den Ausgang des Ladechips, und der
+ * Ladestand kommt aus einer eigenen Kennlinie, siehe battery_filter_charging().
  */
 
 #define DT_DRV_COMPAT dilemma_battery_filter
@@ -42,6 +45,9 @@
 #include <stdlib.h>
 
 #include <dilemma_max/battery.h>
+#if IS_ENABLED(CONFIG_ZMK_USB)
+#include <zmk/usb.h>
+#endif
 #include <zmk/rgb_underglow.h>
 #include <zmk/workqueue.h>
 
@@ -59,11 +65,12 @@ LOG_MODULE_REGISTER(dilemma_max_battery, CONFIG_ZMK_LOG_LEVEL);
 // Ab diesem Sprung folgt der Tiefpass sofort (USB gesteckt oder gezogen).
 #define FILTER_SNAP_MV 150
 #define SOC_HYSTERESIS 2
-// Mehr liefert keine LiPo-Zelle, das ist die USB-Versorgung
-#define EXTERNAL_POWER_MV 4250
-// Ab hier nimmt der Ladestrom ab, die Schaetzung zaehlt die Zeit nur noch halb
-#define CHARGE_TAPER_PCT 80
-#define CHARGE_MAX_PCT 99
+// Am USB-Kabel haelt der Ladechip VDDH etwa 225 mV ueber der Zelle, hoechstens aber auf
+// 4,4 V. Ab hier ist diese Grenze erreicht und die Spannung sagt nichts mehr.
+#define CHARGE_PLATEAU_MV 4375
+// Ladestand, bei dem die Grenze erreicht wird, und wie lange der Rest danach noch dauert
+#define CHARGE_PLATEAU_PCT 91
+#define CHARGE_TAIL_MS (30 * 60 * MSEC_PER_SEC)
 
 struct battery_filter_config {
     const struct device *source;
@@ -86,10 +93,8 @@ struct battery_filter_data {
     int32_t sag_mv;
 
     // Laden am USB-Kabel, siehe battery_filter_charging()
-    bool external;
-    bool charge_known;
-    int32_t charge_mpct;
-    int64_t charge_ts;
+    bool charging;
+    int64_t plateau_ts; // seit wann VDDH an der 4,4-V-Grenze steht, 0 = noch nicht
 };
 
 static bool underglow_is_on(void) {
@@ -102,39 +107,70 @@ static bool underglow_is_on(void) {
 }
 
 /*
- * Entladekurve einer LiPo-Zelle in Ruhe, Stuetzstellen in mV und Prozent, dazwischen linear.
+ * Kennlinien, Stuetzstellen in mV und Prozent, dazwischen linear. Beide stammen aus einem
+ * aufgezeichneten Ladevorgang der linken Haelfte von leer bis voll (220-mAh-Zelle, 100 mA
+ * Ladestrom, Underglow aus).
  *
- * ZMK rechnet mit einer Geraden von 3450 mV (0 %) bis 4200 mV (100 %). Die passt an beiden
- * Enden nicht: 4200 mV liegen nur an, solange das Ladegeraet drueckt - gemessen wurden an
- * einer vollen Zelle direkt nach dem Abziehen 4140 mV, das waren 93 %. Und in der flachen
- * Mitte der Kurve zeigt die Gerade bei 3700 mV noch ein Drittel an, wo real nur noch ein
- * Fuenftel uebrig ist.
+ * Was dabei herauskam: am USB-Kabel liegt an VDDH nicht die Zelle, sondern der Ausgang des
+ * Ladechips. Der laeuft etwa 225 mV ueber der Zelle mit, von 3,4 V bis hoechstens 4,4 V.
+ * Die Spannung stieg knapp 120 Minuten lang gleichmaessig und blieb dann auf 4385 mV
+ * stehen. Bis dahin laedt der Chip mit konstantem Strom, die Zeit ist also der Ladestand:
+ * 120 min x 100 mA = 200 mAh, 91 % der Zelle.
  *
- * Die Werte sind eine typische Kurve, nicht an diesen Zellen ausgemessen. Unten endet sie
- * bei 1 statt 0, siehe oben.
+ * charge_curve ist genau diese Messung: VDDH am Kabel -> Ladestand.
+ *
+ * discharge_curve ist daraus abgeleitet, nicht gemessen: dieselben Ladestaende, 275 mV
+ * tiefer (225 mV Abstand des Ladechips, 50 mV, die eine Zelle beim Laden ueber ihrer
+ * Ruhespannung liegt). Der oberste Punkt ist gemessen: eine volle Zelle zeigte direkt nach
+ * dem Abziehen 4140 mV. Unten ist die Kurve am unsichersten.
  */
-static const struct {
+struct curve_point {
     int16_t mv;
     uint8_t pct;
-} discharge_curve[] = {
-    {4120, 100}, {4050, 90}, {3980, 80}, {3920, 70}, {3870, 60}, {3820, 50},
-    {3790, 40},  {3770, 30}, {3740, 20}, {3680, 10}, {3600, 5},  {3450, 1},
 };
 
-static uint8_t mv_to_pct(int32_t mv) {
-    if (mv >= discharge_curve[0].mv) {
-        return 100;
+static const struct curve_point charge_curve[] = {
+    {4380, 91}, {4330, 87}, {4280, 82}, {4235, 77}, {4200, 73}, {4170, 68}, {4140, 64},
+    {4110, 59}, {4085, 55}, {4055, 45}, {4035, 34}, {4000, 27}, {3960, 23}, {3910, 18},
+    {3850, 14}, {3800, 9},  {3710, 5},  {3400, 1},
+};
+
+static const struct curve_point discharge_curve[] = {
+    {4140, 100}, {4105, 91}, {4055, 87}, {4005, 82}, {3960, 77}, {3925, 73}, {3895, 68},
+    {3865, 64},  {3835, 59}, {3810, 55}, {3780, 45}, {3760, 34}, {3725, 27}, {3685, 23},
+    {3635, 18},  {3575, 14}, {3525, 9},  {3435, 5},  {3300, 1},
+};
+
+// Unten endet jede Kurve bei 1 statt 0, siehe oben
+static uint8_t curve_pct(const struct curve_point *curve, size_t len, int32_t mv) {
+    if (mv >= curve[0].mv) {
+        return curve[0].pct;
     }
 
-    for (size_t i = 1; i < ARRAY_SIZE(discharge_curve); i++) {
-        if (mv >= discharge_curve[i].mv) {
-            int32_t span_mv = discharge_curve[i - 1].mv - discharge_curve[i].mv;
-            int32_t span_pct = discharge_curve[i - 1].pct - discharge_curve[i].pct;
-            return discharge_curve[i].pct + (mv - discharge_curve[i].mv) * span_pct / span_mv;
+    for (size_t i = 1; i < len; i++) {
+        if (mv >= curve[i].mv) {
+            int32_t span_mv = curve[i - 1].mv - curve[i].mv;
+            int32_t span_pct = curve[i - 1].pct - curve[i].pct;
+            return curve[i].pct + (mv - curve[i].mv) * span_pct / span_mv;
         }
     }
 
     return 1;
+}
+
+static uint8_t mv_to_pct(int32_t mv) {
+    return curve_pct(discharge_curve, ARRAY_SIZE(discharge_curve), mv);
+}
+
+// Steckt das USB-Kabel? Links weiss das ZMK, rechts die VBUS-Erkennung des nRF52840.
+static bool usb_powered(void) {
+#if IS_ENABLED(CONFIG_ZMK_USB)
+    return zmk_usb_is_powered();
+#elif IS_ENABLED(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT)
+    return dilemma_max_usb_powered();
+#else
+    return false;
+#endif
 }
 
 static int read_source_mv(const struct device *source, int32_t *mv) {
@@ -179,44 +215,45 @@ static int read_median_mv(const struct device *source, int32_t *mv) {
 }
 
 /*
- * Am USB-Kabel liegt an VDDH nicht der Akku an, sondern die Versorgung: gemessen wurden
- * konstant 4385 bis 4390 mV, egal wie voll die Zelle war. Der Ladechip des nice!nano meldet
- * dem Controller auch nicht, wie weit er ist. Messen laesst sich der Ladestand beim Laden
- * also nicht, nur schaetzen:
+ * Laden am USB-Kabel. Der Ladestand kommt aus charge_curve, solange VDDH noch steigt.
+ * Steht VDDH an der 4,4-V-Grenze, fehlen der Zelle noch die letzten rund 9 %, und die
+ * Spannung verraet nicht mehr, wie weit sie ist: von da an zaehlt die Zeit, 30 Minuten bis
+ * 100 %. Ob der Ladechip wirklich fertig ist, zeigt nur seine LED.
  *
- *   Stand beim Einstecken + Ladestrom x Zeit / Kapazitaet
- *
- * Ab 80 % zaehlt die Zeit nur noch halb, weil der Ladestrom dort abnimmt, und bei 99 ist
- * Schluss - ob die Zelle wirklich voll ist, zeigt nur die Lade-LED. Nach dem Abziehen wird
- * wieder gemessen, und der Tiefpass springt auf den echten Wert.
- *
- * Startet die Haelfte am Kabel (nach dem Flashen, oder per Schalter eingeschaltet), fehlt
- * der Stand beim Einstecken. Dann wird 1 gemeldet, was das Display als "laedt, Stand
- * unbekannt" ohne Zahl zeigt.
+ * Waehrend eines Ladevorgangs faellt der Wert nie: das Underglow zieht VDDH etwas herunter,
+ * und die Anzeige soll deshalb nicht rueckwaerts laufen.
  */
 static void battery_filter_charging(struct battery_filter_data *data, int32_t mv, int64_t now) {
-    if (!data->external) {
-        data->external = true;
-        data->charge_known = data->have_value;
-        data->charge_mpct = data->state_of_charge * 1000;
-    } else if (data->charge_known) {
-        // Promille-Prozent: dt [ms] * I [mA] * 100000 / (C [mAh] * 3600000)
-        int32_t gain = (int32_t)(now - data->charge_ts) * CONFIG_DILEMMA_MAX_CHARGE_CURRENT_MA /
-                       (CONFIG_DILEMMA_MAX_BATTERY_CAPACITY_MAH * 36);
-        if (data->charge_mpct >= CHARGE_TAPER_PCT * 1000) {
-            gain /= 2;
-        }
-        data->charge_mpct = MIN(data->charge_mpct + gain, CHARGE_MAX_PCT * 1000);
-    }
-    data->charge_ts = now;
+    bool started = !data->charging;
 
+    if (started || !data->have_value || abs(mv - data->filtered_mv) > FILTER_SNAP_MV) {
+        data->filtered_mv = mv;
+    } else {
+        data->filtered_mv += (mv - data->filtered_mv) / 4;
+    }
+
+    uint8_t pct;
+    if (data->filtered_mv >= CHARGE_PLATEAU_MV) {
+        if (data->plateau_ts == 0) {
+            data->plateau_ts = MAX(now, 1);
+        }
+        int64_t tail = MIN(now - data->plateau_ts, CHARGE_TAIL_MS);
+        pct = CHARGE_PLATEAU_PCT + (100 - CHARGE_PLATEAU_PCT) * tail / CHARGE_TAIL_MS;
+    } else {
+        data->plateau_ts = 0;
+        pct = curve_pct(charge_curve, ARRAY_SIZE(charge_curve), data->filtered_mv);
+    }
+
+    // 1 liest das Display beim Laden als "Stand unbekannt"
+    pct = MAX(pct, 2);
+    data->state_of_charge = started ? pct : MAX(data->state_of_charge, pct);
+
+    data->charging = true;
+    data->have_value = true;
     // Als Paar fuer den Einbruch taugt die Messung nicht
     data->have_prev = false;
-    data->filtered_mv = mv;
-    data->state_of_charge = data->charge_known ? CLAMP(data->charge_mpct / 1000, 2, 99) : 1;
-    data->have_value = true;
 
-    LOG_INF("Akku %d mV: externe Versorgung, Ladestand geschaetzt %d%%", mv,
+    LOG_INF("Akku laedt: VDDH %d mV, gefiltert %d mV => %d%%", mv, data->filtered_mv,
             data->state_of_charge);
 }
 
@@ -239,11 +276,17 @@ static int battery_filter_sample(const struct device *dev) {
 
     int64_t now = k_uptime_get();
 
-    if (mv > EXTERNAL_POWER_MV) {
+    if (usb_powered()) {
         battery_filter_charging(data, mv, now);
         return 0;
     }
-    data->external = false;
+    if (data->charging) {
+        // Kabel ab: die Messung zeigt wieder die Zelle und liegt gut 200 mV tiefer. Von vorn
+        // anfangen, ohne Tiefpass und ohne Hysterese zum geschaetzten Wert.
+        data->charging = false;
+        data->plateau_ts = 0;
+        data->have_value = false;
+    }
 
     if (data->have_prev && data->prev_loaded != loaded && now - data->prev_ts <= SAG_PAIR_MAX_MS) {
         int32_t sag = loaded ? data->prev_mv - mv : mv - data->prev_mv;

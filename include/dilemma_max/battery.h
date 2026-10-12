@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /* Bereinigter Akkustand in Prozent, 1..100. 0, solange noch nichts gemessen wurde. */
@@ -19,3 +20,6 @@ int32_t dilemma_max_battery_filter_mv(void);
  * Ergebnis ist nie 0, denn 0 heisst auf dem Central "nicht verbunden".
  */
 uint8_t dilemma_max_charge_encode(uint8_t level);
+
+/* Rechte Haelfte: liefert USB gerade Strom? (src/peripheral_charge_report.c) */
+bool dilemma_max_usb_powered(void);

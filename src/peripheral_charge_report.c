@@ -51,7 +51,9 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 static uint8_t polls_since_report;
 static uint8_t forced_reports;
 
-static bool usb_powered(void) { return nrf_power_usbregstatus_vbusdet_get(NRF_POWER); }
+bool dilemma_max_usb_powered(void) { return nrf_power_usbregstatus_vbusdet_get(NRF_POWER); }
+
+static bool usb_powered(void) { return dilemma_max_usb_powered(); }
 
 uint8_t dilemma_max_charge_encode(uint8_t level) {
     // 100 waere als ungerade 101 und damit ausserhalb des erlaubten Bereichs, 1 als gerade 0
