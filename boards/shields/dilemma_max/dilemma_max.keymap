@@ -102,17 +102,18 @@
         };
 
         // Layer DM_LAYER_WIN (1): aktiv, solange der gewaehlte Ausgang im Menue auf "win"
-        // steht. Tauscht Ctrl und GUI: Ctrl liegt dann am Daumen, wo auf dem Mac Cmd liegt
-        // (Kopieren, Einfuegen usw. mit demselben Griff), die Windows-Taste unten links.
-        // Alt bleibt, wo es ist - mit Ctrl zusammen ist das unter Windows AltGr.
+        // steht. Die Modifier liegen unter Windows wie auf dem Mac: Ctrl unten links, Alt und
+        // die Windows-Taste (GUI) am Daumen - der Layer ueberschreibt deshalb im Moment keine
+        // Taste. Er bleibt, weil an ihm die Windows-Varianten der NAV-Tasten (NAV_WIN) und
+        // die Anzeige auf dem Display haengen, und als Platz fuer kuenftige Unterschiede.
         win_layer {
             display-name = "WIN";
             bindings = <
-                &trans     &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans     &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &trans     &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                &kp LGUI   &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                                   &trans  &trans  &kp LCTRL  &trans   &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                                &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans
             >;
         };
 
