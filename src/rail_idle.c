@@ -43,6 +43,7 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/init.h>
 #include <zephyr/pm/device.h>
+#include <zephyr/settings/settings.h>
 #include <zephyr/sys/poweroff.h>
 
 #include <dilemma_max/input.h>
@@ -123,6 +124,23 @@ static void rail_work_cb(struct k_work *work) {
 }
 
 static K_WORK_DELAYABLE_DEFINE(rail_work, rail_work_cb);
+
+#if IS_ENABLED(CONFIG_SETTINGS)
+/*
+ * ZMKs ext_power-Treiber stellt beim Laden der Settings seinen gespeicherten Zustand wieder
+ * her. Steht dort von frueher "aus" (etwa von einer EP_OFF-Taste aus einer alten Keymap),
+ * schaltet er die Schiene kurz nach dem Start ab, ohne dass dieser Code davon weiss - das
+ * Display blieb dann dunkel bis zum naechsten Idle-Wechsel. Der Commit-Handler laeuft nach
+ * dem Laden und setzt den Pin wieder auf das, was hier gilt.
+ */
+static int rail_settings_commit(void) {
+    gpio_pin_set_dt(&rail, rail_is_on ? 1 : 0);
+    return 0;
+}
+
+SETTINGS_STATIC_HANDLER_DEFINE(dilemma_max_rail, "dilemma/rail", NULL, NULL, rail_settings_commit,
+                               NULL);
+#endif
 
 void dilemma_max_rail_set(bool on) {
     rail_wanted = on;

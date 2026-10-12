@@ -38,6 +38,9 @@
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
 #include <dilemma_max/menu.h>
 #endif
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_POWER)
+#include <dilemma_max/power.h>
+#endif
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
 #include <dilemma_max/os.h>
 #include <dt-bindings/dilemma_max/layers.h>
@@ -463,6 +466,13 @@ static void draw_bottom(void) {
     // des Encoders). Dort steht das Betriebssystem des gewaehlten Ausgangs.
     if (state.layer.index < DM_LAYER_NAV) {
         name = dilemma_max_os_is_windows() ? "WIN" : "MAC";
+    }
+#endif
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_POWER)
+    // Power saving mode: zu sehen ist das nur in den Sekunden nach dem Start, bevor die
+    // Schiene ausgeht - als Hinweis, warum das Display gleich dunkel wird
+    if (dilemma_max_power_eco()) {
+        name = "SAVING";
     }
 #endif
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
