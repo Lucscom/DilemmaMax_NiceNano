@@ -351,7 +351,9 @@ The menu has three pages:
 | | `R Knob` | the same for the right encoder | vol, scrl, light, zoom |
 | | `OS` | Mac or Windows for the output currently selected | mac, win |
 
-Power defaults are 30 s, 30 s and 5 min. All values are stored in the settings.
+Power defaults are 30 s, 30 s and 5 min. Every value is stored per output: each
+Bluetooth profile and USB has its own set, and switching profiles switches the
+whole set along with it.
 
 Hold NAV and press the left encoder to open the menu. Turning selects an entry,
 pressing opens a page or steps a value. Tapping NAV goes back one level, NAV
@@ -369,9 +371,7 @@ underglow state. Both encoders are bound to the `&knob` behavior
 (`src/knob.c`), which runs the selected function through `&kp`, `&msc` or
 `&rgb_ug`. With NAV held the encoders keep the NAV layer's bindings.
 
-`OS` is stored per output: each Bluetooth profile and USB has its own value, so
-switching profiles switches the keyboard along with it. A keyboard cannot
-detect the host's operating system. While an output counts as Windows, the
+A keyboard cannot detect the host's operating system, hence the `OS` entry. While an output counts as Windows, the
 keymap's `WIN` layer is active (it overrides no key at the moment: Ctrl, Alt
 and GUI stay where they are), NAV gets Win+H and Win+Tab in place of Globe and
 Mission Control, and the trackpad gestures send the shortcuts from

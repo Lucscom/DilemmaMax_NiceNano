@@ -4,7 +4,8 @@
  * ZMK kennt zwei feste, einkompilierte Zeiten: nach CONFIG_ZMK_IDLE_TIMEOUT gilt die
  * Tastatur als idle, nach CONFIG_ZMK_IDLE_SLEEP_TIMEOUT geht sie in den Deep Sleep. Hier
  * laeuft stattdessen eine eigene Uhr seit der letzten Eingabe, mit drei Zeiten, die sich
- * im Menue auf dem Display aendern lassen (src/menu.c) und in den Settings liegen:
+ * im Menue auf dem Display aendern lassen (src/menu.c) und pro Ausgang in den Settings
+ * liegen:
  *
  *   LIGHT   Beleuchtung aus
  *   POWER   3,3-V-Schiene aus: LEDs stromlos, Display dunkel, Trackpad aus
@@ -30,6 +31,9 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/sys/atomic.h>
 
+#include <string.h>
+
+#include <dilemma_max/os.h>
 #include <dilemma_max/power.h>
 #include <zmk/event_manager.h>
 #include <zmk/events/position_state_changed.h>
@@ -55,18 +59,29 @@ static const uint16_t options[DILEMMA_MAX_POWER_ITEM_COUNT][OPTION_COUNT] = {
     [DILEMMA_MAX_POWER_SLEEP] = {60, 120, 300, 600, 1800, 0},
 };
 
+// Standard: 30 s Licht, 30 s Schiene, 5 min Deep Sleep
+#define DEFAULT_OPTIONS {1, 0, 2}
+
 /*
+ * Die Zeiten gelten pro Ausgang (Bluetooth-Profile und USB, siehe dilemma_max/os.h) und
+ * wechseln mit ihm.
+ *
  * dimmed_light: das Underglow ist nur deshalb aus, weil hier abgedunkelt wurde. ZMK
  * speichert den Zustand "aus" in seinen Settings; schlaeft die Tastatur so ein, kaeme
  * sie dunkel wieder hoch. Mit dem Merker schaltet der Start das Licht wieder ein.
  */
 static struct {
-    uint8_t option[DILEMMA_MAX_POWER_ITEM_COUNT];
+    uint8_t option[DILEMMA_MAX_OUTPUT_COUNT][DILEMMA_MAX_POWER_ITEM_COUNT];
     uint8_t dimmed_light;
 } __packed saved = {
-    // 30 s Licht, 30 s Schiene, 5 min Deep Sleep
-    .option = {1, 0, 2},
+    .option = {[0 ... DILEMMA_MAX_OUTPUT_COUNT - 1] = DEFAULT_OPTIONS},
 };
+
+// Format vor der Trennung nach Ausgaengen: ein Satz Zeiten fuer alles
+struct saved_v1 {
+    uint8_t option[DILEMMA_MAX_POWER_ITEM_COUNT];
+    uint8_t dimmed_light;
+} __packed;
 
 static atomic_t last_activity_ms;
 
@@ -87,11 +102,13 @@ static K_WORK_DELAYABLE_DEFINE(save_work, save_work_cb);
 static void save_later(void) { k_work_reschedule(&save_work, K_SECONDS(10)); }
 
 uint16_t dilemma_max_power_timeout_s(enum dilemma_max_power_item item) {
-    return options[item][saved.option[item]];
+    return options[item][saved.option[dilemma_max_output_index()][item]];
 }
 
 void dilemma_max_power_cycle(enum dilemma_max_power_item item) {
-    saved.option[item] = (saved.option[item] + 1) % OPTION_COUNT;
+    uint8_t *option = &saved.option[dilemma_max_output_index()][item];
+
+    *option = (*option + 1) % OPTION_COUNT;
     save_later();
 }
 
@@ -213,18 +230,37 @@ INPUT_CALLBACK_DEFINE(NULL, power_input_listener);
 
 static int power_settings_set(const char *name, size_t len, settings_read_cb read_cb,
                               void *cb_arg) {
-    if (settings_name_next(name, NULL) != 0 || len != sizeof(saved)) {
+    int rc;
+
+    if (settings_name_next(name, NULL) != 0) {
         return -ENOENT;
     }
 
-    int rc = read_cb(cb_arg, &saved, sizeof(saved));
-    if (rc < 0) {
-        return rc;
+    if (len == sizeof(struct saved_v1) && len != sizeof(saved)) {
+        // Alter Stand: fuer alle Ausgaenge uebernehmen
+        struct saved_v1 old;
+        rc = read_cb(cb_arg, &old, sizeof(old));
+        if (rc < 0) {
+            return rc;
+        }
+        for (int output = 0; output < DILEMMA_MAX_OUTPUT_COUNT; output++) {
+            memcpy(saved.option[output], old.option, sizeof(old.option));
+        }
+        saved.dimmed_light = old.dimmed_light;
+    } else if (len == sizeof(saved)) {
+        rc = read_cb(cb_arg, &saved, sizeof(saved));
+        if (rc < 0) {
+            return rc;
+        }
+    } else {
+        return -ENOENT;
     }
 
-    for (int i = 0; i < DILEMMA_MAX_POWER_ITEM_COUNT; i++) {
-        if (saved.option[i] >= OPTION_COUNT) {
-            saved.option[i] = 0;
+    for (int output = 0; output < DILEMMA_MAX_OUTPUT_COUNT; output++) {
+        for (int i = 0; i < DILEMMA_MAX_POWER_ITEM_COUNT; i++) {
+            if (saved.option[output][i] >= OPTION_COUNT) {
+                saved.option[output][i] = 0;
+            }
         }
     }
 

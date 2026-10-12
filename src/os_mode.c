@@ -31,7 +31,7 @@ LOG_MODULE_REGISTER(dilemma_max_os, CONFIG_ZMK_LOG_LEVEL);
 
 #define SETTINGS_KEY "dilemma/os"
 #define OUTPUT_USB ZMK_BLE_PROFILE_COUNT
-#define OUTPUT_COUNT (ZMK_BLE_PROFILE_COUNT + 1)
+#define OUTPUT_COUNT DILEMMA_MAX_OUTPUT_COUNT
 
 // 0 = Mac, 1 = Windows
 static uint8_t windows[OUTPUT_COUNT];
@@ -45,6 +45,8 @@ static int current_output(void) {
 
     return CLAMP(zmk_ble_active_profile_index(), 0, ZMK_BLE_PROFILE_COUNT - 1);
 }
+
+int dilemma_max_output_index(void) { return current_output(); }
 
 bool dilemma_max_os_is_windows(void) { return windows[current_output()] != 0; }
 
