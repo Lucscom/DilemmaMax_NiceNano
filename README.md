@@ -340,13 +340,23 @@ trackpad) and applies three timeouts that can be changed on the display:
 | `LIGHT` | underglow off on both halves | 10 s, 30 s, 1, 2, 5 min, never |
 | `POWER` | 3.3 V rail off: LEDs unpowered, display dark, trackpad off | 30 s, 1, 2, 5, 10 min, never |
 | `SLEEP` | deep sleep on both halves | 1, 2, 5, 10, 30 min, never |
+| `OS` | Mac or Windows for the output currently selected | mac, win |
 | `BATT` | shows the measured voltage of the left half | |
 
 Defaults are 30 s, 30 s and 5 min. The values are stored in the settings.
 
+`OS` is stored per output: each Bluetooth profile and USB has its own value, so
+switching profiles switches the keyboard along with it. A keyboard cannot
+detect the host's operating system. While an output counts as Windows, the
+keymap's `WIN` layer is active (Ctrl and GUI swapped, so Ctrl sits on the thumb
+where Cmd is on the Mac), NAV gets Win+H and Win+Tab in place of Globe and
+Mission Control, and the trackpad gestures send the shortcuts from
+`keycodes-win` (virtual desktops, task view, show desktop, Ctrl zoom). The
+layer order is fixed in `include/dt-bindings/dilemma_max/layers.h`.
+
 To open the menu, hold NAV and press the left encoder. Turning selects an
 entry, pressing steps its value, `EXIT` or 20 s without input closes it. While
-it is open the keymap's layer 2 (`MENU`) is active, where the encoder is bound
+it is open the keymap's top layer (`MENU`) is active, where the encoder is bound
 to the `&menu` behavior from `src/menu.c`; nothing is intercepted and all other
 keys keep working.
 

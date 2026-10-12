@@ -18,3 +18,8 @@ properties:
     description: |
       Kuerzel pro Code, gleiche Reihenfolge wie codes. ZMK-Keycodes aus
       dt-bindings/zmk/keys.h, Modifier ueber LC(), LG() usw.
+  keycodes-win:
+    type: array
+    description: |
+      Dasselbe fuer Windows, gleiche Reihenfolge. Gilt, solange der gewaehlte Ausgang im
+      Menue auf "win" steht (src/os_mode.c). Fehlt die Angabe, gelten immer keycodes.

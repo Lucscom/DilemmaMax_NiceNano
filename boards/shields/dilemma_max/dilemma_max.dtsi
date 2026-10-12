@@ -182,5 +182,9 @@
         keycodes = <LC(RIGHT) LC(LEFT)     // Space rechts / links
                     LC(UP) LC(DOWN)        // Mission Control / App-Expose
                     LG(KP_PLUS) LG(KP_MINUS)>; // Zoom rein / raus
+        // Windows: virtuelle Desktops, Task-Ansicht, Desktop zeigen, Zoom mit Ctrl
+        keycodes-win = <LC(LG(RIGHT)) LC(LG(LEFT))
+                        LG(TAB) LG(D)
+                        LC(KP_PLUS) LC(KP_MINUS)>;
     };
 };

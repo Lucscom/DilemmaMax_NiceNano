@@ -26,6 +26,10 @@
 
 #include <zmk/events/keycode_state_changed.h>
 
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+#include <dilemma_max/os.h>
+#endif
+
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 // So lange bleibt das Kuerzel gedrueckt: Druecken und Loslassen im selben Moment kommen
@@ -36,6 +40,8 @@ struct gk_config {
     size_t size;
     const uint16_t *codes;
     const uint32_t *keycodes;
+    // Kuerzel fuer Windows, NULL wenn im Devicetree keine stehen (dann gelten immer keycodes)
+    const uint32_t *keycodes_win;
 };
 
 K_MSGQ_DEFINE(gk_msgq, sizeof(uint32_t), 8, 4);
@@ -81,7 +87,13 @@ static int gk_handle_event(const struct device *dev, struct input_event *event, 
         // Der Treiber meldet Druecken + Loslassen; das Kuerzel wird beim Druecken als Ganzes
         // ausgeloest, das Loslassen nur verschluckt.
         if (event->value) {
-            if (k_msgq_put(&gk_msgq, &cfg->keycodes[i], K_NO_WAIT) != 0) {
+            const uint32_t *keycodes = cfg->keycodes;
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+            if (cfg->keycodes_win != NULL && dilemma_max_os_is_windows()) {
+                keycodes = cfg->keycodes_win;
+            }
+#endif
+            if (k_msgq_put(&gk_msgq, &keycodes[i], K_NO_WAIT) != 0) {
                 LOG_WRN("gesture key queue full, dropping 0x%x", event->code);
             } else {
                 k_work_submit(&gk_press_work);
@@ -102,10 +114,17 @@ static struct zmk_input_processor_driver_api gk_driver_api = {
     static const uint32_t gk_keycodes_##n[] = DT_INST_PROP(n, keycodes);                           \
     BUILD_ASSERT(ARRAY_SIZE(gk_codes_##n) == ARRAY_SIZE(gk_keycodes_##n),                          \
                  "codes and keycodes need to be the same length");                                 \
+    COND_CODE_1(DT_INST_NODE_HAS_PROP(n, keycodes_win),                                            \
+                (static const uint32_t gk_keycodes_win_##n[] = DT_INST_PROP(n, keycodes_win);      \
+                 BUILD_ASSERT(ARRAY_SIZE(gk_codes_##n) == ARRAY_SIZE(gk_keycodes_win_##n),         \
+                              "codes and keycodes-win need to be the same length");),              \
+                ())                                                                                \
     static const struct gk_config gk_config_##n = {                                                \
         .size = ARRAY_SIZE(gk_codes_##n),                                                          \
         .codes = gk_codes_##n,                                                                     \
         .keycodes = gk_keycodes_##n,                                                               \
+        .keycodes_win = COND_CODE_1(DT_INST_NODE_HAS_PROP(n, keycodes_win),                        \
+                                    (gk_keycodes_win_##n), (NULL)),                                \
     };                                                                                             \
     DEVICE_DT_INST_DEFINE(n, NULL, NULL, NULL, &gk_config_##n, POST_KERNEL,                        \
                           CONFIG_KERNEL_INIT_PRIORITY_DEFAULT, &gk_driver_api);

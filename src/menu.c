@@ -5,7 +5,7 @@
  * drehen waehlt einen Eintrag, druecken schaltet dessen Wert weiter. EXIT oder 20 s ohne
  * Bedienung schliessen es wieder.
  *
- * Abgefangen wird dafuer nichts. Solange das Menue offen ist, ist der Layer DM_MENU_LAYER
+ * Abgefangen wird dafuer nichts. Solange das Menue offen ist, ist der Layer DM_LAYER_MENU
  * der Keymap aktiv, und auf dem liegen Drehen und Druecken des Encoders auf dem Behavior
  * &menu aus dieser Datei. Alle anderen Tasten sind dort durchsichtig, man kann also
  * weitertippen.
@@ -27,6 +27,7 @@
 #include <dt-bindings/dilemma_max/menu.h>
 #include <dilemma_max/battery.h>
 #include <dilemma_max/menu.h>
+#include <dilemma_max/os.h>
 #include <dilemma_max/power.h>
 #include <zmk/behavior.h>
 #include <zmk/keymap.h>
@@ -34,8 +35,9 @@
 LOG_MODULE_REGISTER(dilemma_max_menu, CONFIG_ZMK_LOG_LEVEL);
 
 // Die ersten Eintraege sind die Zeiten aus dilemma_max/power.h, in derselben Reihenfolge
-#define ITEM_BATT DILEMMA_MAX_POWER_ITEM_COUNT
-#define ITEM_EXIT (DILEMMA_MAX_POWER_ITEM_COUNT + 1)
+#define ITEM_OS DILEMMA_MAX_POWER_ITEM_COUNT
+#define ITEM_BATT (DILEMMA_MAX_POWER_ITEM_COUNT + 1)
+#define ITEM_EXIT (DILEMMA_MAX_POWER_ITEM_COUNT + 2)
 
 BUILD_ASSERT(ITEM_EXIT + 1 == DILEMMA_MAX_MENU_ITEM_COUNT);
 
@@ -52,9 +54,9 @@ static void menu_set_open(bool open) {
     menu_open = open;
     if (open) {
         menu_cursor = 0;
-        zmk_keymap_layer_activate(DM_MENU_LAYER);
+        zmk_keymap_layer_activate(DM_LAYER_MENU);
     } else {
-        zmk_keymap_layer_deactivate(DM_MENU_LAYER);
+        zmk_keymap_layer_deactivate(DM_LAYER_MENU);
     }
 }
 
@@ -83,8 +85,8 @@ void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, cha
                                 size_t value_len) {
     static const char *const labels[DILEMMA_MAX_MENU_ITEM_COUNT] = {
         [DILEMMA_MAX_POWER_LIGHT] = "LIGHT", [DILEMMA_MAX_POWER_RAIL] = "POWER",
-        [DILEMMA_MAX_POWER_SLEEP] = "SLEEP", [ITEM_BATT] = "BATT",
-        [ITEM_EXIT] = "EXIT",
+        [DILEMMA_MAX_POWER_SLEEP] = "SLEEP", [ITEM_OS] = "OS",
+        [ITEM_BATT] = "BATT",                [ITEM_EXIT] = "EXIT",
     };
 
     label[0] = '\0';
@@ -97,6 +99,10 @@ void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, cha
 
     if (item < DILEMMA_MAX_POWER_ITEM_COUNT) {
         format_timeout(dilemma_max_power_timeout_s(item), value, value_len);
+    } else if (item == ITEM_OS) {
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+        snprintf(value, value_len, "%s", dilemma_max_os_is_windows() ? "win" : "mac");
+#endif
     } else if (item == ITEM_BATT) {
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_BATTERY_FILTER)
         // Gemessene Spannung der linken Haelfte in mV; am USB-Kabel ist das die Versorgung
@@ -114,7 +120,18 @@ const char *dilemma_max_menu_item_hint(uint8_t item) {
         [ITEM_EXIT] = "press knob",
     };
 
-    return item < DILEMMA_MAX_MENU_ITEM_COUNT ? hints[item] : "";
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    // Der Wert gilt nur fuer den gerade gewaehlten Ausgang, also dazuschreiben, welcher das ist
+    if (item == ITEM_OS) {
+        static char hint[12];
+        char output[6];
+        dilemma_max_os_output_name(output, sizeof(output));
+        snprintf(hint, sizeof(hint), "for %s", output);
+        return hint;
+    }
+#endif
+
+    return item < DILEMMA_MAX_MENU_ITEM_COUNT && hints[item] != NULL ? hints[item] : "";
 }
 
 static int menu_binding_pressed(struct zmk_behavior_binding *binding,
@@ -140,6 +157,10 @@ static int menu_binding_pressed(struct zmk_behavior_binding *binding,
         }
         if (menu_cursor < DILEMMA_MAX_POWER_ITEM_COUNT) {
             dilemma_max_power_cycle(menu_cursor);
+        } else if (menu_cursor == ITEM_OS) {
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+            dilemma_max_os_toggle();
+#endif
         } else if (menu_cursor == ITEM_EXIT) {
             menu_set_open(false);
         }

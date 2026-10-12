@@ -203,3 +203,13 @@ config DILEMMA_MAX_MENU
       Menue fuer die Zeiten aus CONFIG_DILEMMA_MAX_POWER, bedient mit dem linken Encoder
       ueber das Behavior &menu (src/menu.c). Die Keymap braucht dafuer einen eigenen
       Layer, siehe DM_MENU_LAYER in dt-bindings/dilemma_max/menu.h.
+
+config DILEMMA_MAX_OS_MODE
+    bool "Mac oder Windows pro Bluetooth-Profil"
+    default y
+    depends on DILEMMA_MAX_MENU && ZMK_BLE && SETTINGS
+    help
+      Merkt sich pro Ausgang (Bluetooth-Profile und USB), ob dort ein Mac oder ein
+      Windows-Rechner haengt (src/os_mode.c), einstellbar im Menue. Fuer Windows ist der
+      Layer DM_LAYER_WIN der Keymap aktiv, und die Trackpad-Gesten nehmen die Kuerzel aus
+      keycodes-win des gesture_keys-Knotens.

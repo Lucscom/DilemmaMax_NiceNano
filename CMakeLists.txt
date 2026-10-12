@@ -24,3 +24,4 @@ target_sources_ifdef(CONFIG_DILEMMA_MAX_BATTERY_FILTER app PRIVATE src/battery_f
 target_sources_ifdef(CONFIG_DILEMMA_MAX_RAIL_IDLE app PRIVATE src/rail_idle.c)
 target_sources_ifdef(CONFIG_DILEMMA_MAX_POWER app PRIVATE src/power.c)
 target_sources_ifdef(CONFIG_DILEMMA_MAX_MENU app PRIVATE src/menu.c)
+target_sources_ifdef(CONFIG_DILEMMA_MAX_OS_MODE app PRIVATE src/os_mode.c)
