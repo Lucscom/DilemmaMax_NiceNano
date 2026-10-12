@@ -7,6 +7,8 @@
 #include <dt-bindings/zmk/pointing.h>
 #include <dt-bindings/zmk/bt.h>
 #include <dt-bindings/zmk/rgb.h>
+#include <dt-bindings/dilemma_max/menu.h>
+#include <dt-bindings/dilemma_max/knob.h>
 
 / {
     behaviors {
@@ -15,6 +17,16 @@
             #sensor-binding-cells = <2>;
             bindings = <&msc>, <&msc>;
             // tap-ms must be > trigger-period-ms (16ms) so the msc tick fires at least once
+            tap-ms = <25>;
+        };
+
+        // Beide Encoder auf dem Basis-Layer: was sie tun (Lautstaerke, Scrollen, Helligkeit),
+        // wird im Menue unter Input eingestellt, siehe src/knob.c. tap-ms wie beim
+        // scroll_encoder, damit beim Scrollen mindestens ein Tick faellt.
+        knob_enc: knob_enc {
+            compatible = "zmk,behavior-sensor-rotate-var";
+            #sensor-binding-cells = <2>;
+            bindings = <&knob>, <&knob>;
             tap-ms = <25>;
         };
 
@@ -40,9 +52,20 @@
         };
     };
 
+    // NAV und WIN zusammen schalten die Windows-Varianten der NAV-Tasten dazu
+    conditional_layers {
+        compatible = "zmk,conditional-layers";
+        nav_win {
+            if-layers = <DM_LAYER_WIN DM_LAYER_NAV>;
+            then-layer = <DM_LAYER_NAV_WIN>;
+        };
+    };
+
     keymap {
         compatible = "zmk,keymap";
 
+        // Die Reihenfolge der Layer ist in dt-bindings/dilemma_max/layers.h festgelegt:
+        // BASE, WIN, NAV, NAV_WIN, MENU. Die Firmware schaltet WIN und MENU selbst.
         default_layer {
             display-name = "BASE";
             // ┌─────┬───┬───┬───┬───┬───┐   ┌───┬───┬───┬───┬───┬─────┐
@@ -54,17 +77,35 @@
             // ├─────┼───┼───┼───┼───┼───┤   ├───┼───┼───┼───┼───┼─────┤
             // │LCTL │ Z │ X │ C │ V │ B │   │ N │ M │ , │ . │ / │  \  │
             // └─────┴───┼───┼───┼───┼───┤   ├───┼───┼───┼───┴───┴─────┘
-            //           │MUT│ALT│GUI│MO1│   │BSP│SPC│RET│C_PP│
+            //           │MUT│ALT│GUI│NAV│   │BSP│SPC│RET│C_PP│
             //           └───┴───┴───┴───┘   └───┴───┴───┴────┘
             bindings = <
                 &kp ESC    &kp N1  &kp N2  &kp N3    &kp N4   &kp N5               &kp N6   &kp N7   &kp N8     &kp N9   &kp N0    &kp EQUAL
                 &kp TAB    &kp Q   &kp W   &kp E     &kp R    &kp T                &kp Y    &kp U    &kp I      &kp O    &kp P     &kp MINUS
                 &kp LSHFT  &kp A   &kp S   &kp D     &kp F    &kp G                &kp H    &kp J    &kp K      &kp L    &kp SEMI  &kp SQT
                 &kp LCTRL  &kp Z   &kp X   &kp C     &kp V    &kp B                &kp N    &kp M    &kp COMMA  &kp DOT  &kp FSLH  &kp BSLH
-                                  &kp C_MUTE &kp LALT &kp LGUI &mo 1      &kp BSPC &kp SPACE &kp RET &kp C_PP
+                                  &kp C_MUTE &kp LALT &kp LGUI &mo DM_LAYER_NAV      &kp BSPC &kp SPACE &kp RET &kp C_PP
             >;
 
-            sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_DOWN SCRL_UP>;
+            // Funktion beider Encoder: einstellbar im Menue (Standard: links Lautstaerke,
+            // rechts Scrollen)
+            sensor-bindings = <&knob_enc DM_KNOB_LEFT_DEC DM_KNOB_LEFT_INC &knob_enc DM_KNOB_RIGHT_DEC DM_KNOB_RIGHT_INC>;
+        };
+
+        // Layer DM_LAYER_WIN (1): aktiv, solange der gewaehlte Ausgang im Menue auf "win"
+        // steht. Die Modifier liegen unter Windows wie auf dem Mac: Ctrl unten links, Alt und
+        // die Windows-Taste (GUI) am Daumen - der Layer ueberschreibt deshalb im Moment keine
+        // Taste. Er bleibt, weil an ihm die Windows-Varianten der NAV-Tasten (NAV_WIN) und
+        // die Anzeige auf dem Display haengen, und als Platz fuer kuenftige Unterschiede.
+        win_layer {
+            display-name = "WIN";
+            bindings = <
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                                &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans
+            >;
         };
 
         nav_layer {
@@ -85,16 +126,49 @@
             // FN    = Globe/Fn-Taste (Diktat)
             // MIS   = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
+            // Encoder druecken (Daumenreihe ganz links) = Einstellungsmenue oeffnen und schliessen
             bindings = <
                 &trans      &bt_ht 0 0    &bt_ht 1 1    &bt_ht 2 2          &bt_ht 3 3                          &bt_ht 4 4    &trans  &trans    &trans    &trans     &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP    &trans     &trans  &trans
                 &trans      &trans        &trans        &kp GLOBE            &kp C_AC_DESKTOP_SHOW_ALL_WINDOWS   &trans        &trans  &kp LEFT  &kp DOWN  &kp RIGHT  &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &trans  &rgb_ug RGB_TOG  &rgb_ug RGB_BRI  &rgb_ug RGB_BRD  &rgb_ug RGB_EFF  &rgb_ug RGB_HUI  &rgb_ug RGB_HUD
-                            &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &trans
+                            &menu DM_MENU_OPEN  &trans        &trans               &trans                              &trans        &trans  &trans    &trans
             >;
 
             // Left encoder: volume | Right encoder: horizontal scroll (Maussimulation)
             sensor-bindings = <&inc_dec_kp C_VOL_DN C_VOL_UP &scroll_encoder SCRL_LEFT SCRL_RIGHT>;
+        };
+
+        // Layer DM_LAYER_NAV_WIN (3): NAV unter Windows, schaltet sich ueber conditional_layers
+        // von selbst ein. Ersetzt die Mac-Sondertasten: Diktat (Win+H) statt Globe,
+        // Task-Ansicht (Win+Tab) statt Mission Control.
+        nav_win_layer {
+            display-name = "NAV";
+            bindings = <
+                &trans  &trans  &trans  &trans      &trans        &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans      &trans        &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &kp LG(H)   &kp LG(TAB)   &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans      &trans        &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                                &trans  &trans      &trans        &trans      &trans  &trans  &trans  &trans
+            >;
+        };
+
+        // Layer DM_LAYER_MENU (4): aktiv, solange das Einstellungsmenue auf dem Display offen
+        // ist. Oeffnen: NAV halten und den linken Encoder druecken. Im Menue: drehen = Eintrag
+        // waehlen, druecken = Untermenue oeffnen oder Wert weiterschalten, NAV antippen = eine
+        // Ebene zurueck, NAV + druecken = schliessen. Nach 20 s Pause geht es von selbst zu.
+        // Die NAV-Taste gehoert hier dem Menue, alle anderen Tasten bleiben, wie sie sind.
+        menu_layer {
+            display-name = "MENU";
+            bindings = <
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
+                        &menu DM_MENU_SELECT  &trans  &trans  &menu DM_MENU_BACK      &trans  &trans  &trans  &trans
+            >;
+
+            sensor-bindings = <&menu_knob &knob_enc DM_KNOB_RIGHT_DEC DM_KNOB_RIGHT_INC>;
         };
     };
 };

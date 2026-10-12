@@ -1,0 +1,13 @@
+description: |
+  Dilemma Max: Encoder im Einstellungsmenue (src/menu_knob.c). Sensor-Behavior ohne
+  Parameter fuer die sensor-bindings des MENU-Layers; drehen waehlt den Eintrag.
+
+compatible: "dilemma,behavior-menu-knob"
+
+include: behavior-metadata.yaml
+
+properties:
+  "#sensor-binding-cells":
+    type: int
+    required: true
+    const: 0

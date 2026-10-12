@@ -76,6 +76,11 @@ struct mxt_data {
     uint16_t click_button;
     bool irq_mode;      // CHG-Interrupt statt Dauer-Polling
     bool ready;         // Chip konfiguriert, alte Meldungen verworfen: erst dann Gesten auswerten
+    bool suspended;     // Versorgung des Pads ist aus (PM SUSPEND): kein I2C, keine Meldungen
+    // Zur Laufzeit schaltbar, siehe mxt_set_options(). Die Werte kommen vom Central und
+    // gelten bis zum naechsten Neustart.
+    bool tap_enabled;      // Tippen klickt
+    bool momentum_enabled; // Scrollen laeuft nach dem Abheben aus
     bool button_held;   // Taste gedrueckt (Tap-Release ausstehend oder Drag laeuft)
     bool dragging;      // Tap-and-Drag aktiv
     // Absicherung gegen haengende Finger: die T100-Statusmeldung meldete 0 Touches, waehrend

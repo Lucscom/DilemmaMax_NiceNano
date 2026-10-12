@@ -7,17 +7,18 @@
  * Link nicht uebertragen: das Central sieht die Tastendruecke beider Haelften, das
  * Peripheral nur seine eigenen. Deshalb bleibt rechts dunkel, wenn man links tippt.
  *
- * Dieser Code laeuft nur auf dem Central. Nach jedem Wechsel des Activity-States
- * schickt er den eigenen Underglow-Zustand per rgb_ug-Behavior (RGB_ON bzw. RGB_OFF)
- * an alle Peripherals. Rechts ist die eigene Idle-Abschaltung dafuer deaktiviert
+ * Dieser Code laeuft nur auf dem Central. Bei jedem Wechsel - seit es src/power.c gibt,
+ * meldet der sie, vorher war es der Activity-State - schickt er den eigenen Underglow-
+ * Zustand per rgb_ug-Behavior (RGB_ON bzw. RGB_OFF) an alle Peripherals, zusammen mit
+ * dem Zustand der 3,3-V-Schiene. Rechts ist die eigene Idle-Abschaltung dafuer deaktiviert
  * (config/dilemma_max_right.conf), die Seite entscheidet also nicht mehr selbst.
  *
  * Geschickt wird bewusst der tatsaechliche Zustand und nicht einfach "aktiv":
  * ist das Underglow per &rgb_ug RGB_TOG ausgeschaltet, laesst ZMK es beim Aufwachen
  * aus - die Peripherals muessen dann ebenfalls aus bleiben.
  *
- * Lokal wird nichts ausgeloest: das Central braucht seinen eigenen Auto-Off-Pfad,
- * der sich den Zustand vor dem Idle merkt und ihn beim Aufwachen wiederherstellt.
+ * Lokal wird nichts ausgeloest: das Abdunkeln des Centrals macht src/power.c, das sich
+ * den Zustand davor merkt und ihn beim Aufwachen wiederherstellt.
  *
  * Denselben Zustand bekommt ein Peripheral, sobald es sich verbindet - bis dahin haelt
  * es sein Underglow aus (src/rgb_split_follow.c).
@@ -31,6 +32,8 @@
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/atomic.h>
 
+#include <dilemma_max/input.h>
+#include <dilemma_max/power.h>
 #include <dt-bindings/zmk/rgb.h>
 #include <zmk/activity.h>
 #include <zmk/behavior.h>
@@ -43,6 +46,9 @@ LOG_MODULE_REGISTER(dilemma_max_rgb_sync, CONFIG_ZMK_LOG_LEVEL);
 
 // Das Peripheral sucht das Behavior ueber seinen Device-Namen (max. 8 Zeichen).
 #define RGB_UG_DEV DEVICE_DT_NAME(DT_NODELABEL(rgb_ug))
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_POWER)
+#define RAIL_PWR_DEV DEVICE_DT_NAME(DT_NODELABEL(rail_pwr))
+#endif
 
 // Kleiner Abstand zum Activity-Event, damit der Auto-Off-Listener von ZMK den
 // lokalen Zustand sicher schon gesetzt hat - die Listener-Reihenfolge ist
@@ -61,10 +67,10 @@ LOG_MODULE_REGISTER(dilemma_max_rgb_sync, CONFIG_ZMK_LOG_LEVEL);
 #define CONNECT_FIRST_DELAY K_SECONDS(1)
 #define CONNECT_RETRIES 5
 
-static void rgb_split_sync_send(bool on) {
+static void split_sync_invoke(const char *behavior_dev, uint32_t param1) {
     struct zmk_behavior_binding binding = {
-        .behavior_dev = RGB_UG_DEV,
-        .param1 = on ? RGB_ON_CMD : RGB_OFF_CMD,
+        .behavior_dev = behavior_dev,
+        .param1 = param1,
         .param2 = 0,
     };
     struct zmk_behavior_binding_event event = {
@@ -74,12 +80,39 @@ static void rgb_split_sync_send(bool on) {
     };
 
     for (uint8_t i = 0; i < ZMK_SPLIT_CENTRAL_PERIPHERAL_COUNT; i++) {
-        // Das rgb_ug-Behavior reagiert nur auf "pressed", daher state = true.
+        // Beide Behaviors reagieren nur auf "pressed", daher state = true.
         int err = zmk_split_central_invoke_behavior(i, &binding, event, true);
         if (err < 0) {
-            LOG_DBG("Underglow-Sync an Peripheral %d fehlgeschlagen (%d)", i, err);
+            LOG_DBG("Sync %s an Peripheral %d fehlgeschlagen (%d)", behavior_dev, i, err);
         }
     }
+}
+
+static void rgb_split_sync_send(bool on) {
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_POWER)
+    // Die 3,3-V-Schiene des Peripherals gibt src/power.c vor. Reihenfolge: erst Strom, dann
+    // Licht - und umgekehrt.
+    bool rail_on = dilemma_max_power_remote_rail_on();
+
+    if (rail_on) {
+        split_sync_invoke(RAIL_PWR_DEV, DILEMMA_MAX_RAIL_ON);
+    }
+
+    split_sync_invoke(RGB_UG_DEV, on ? RGB_ON_CMD : RGB_OFF_CMD);
+
+    if (!rail_on) {
+        split_sync_invoke(RAIL_PWR_DEV, dilemma_max_power_eco() ? DILEMMA_MAX_RAIL_FORCE_OFF
+                                                                : DILEMMA_MAX_RAIL_OFF);
+    }
+
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_INPUT_SETTINGS)
+    // Tippen und Auslaufen des Trackpads: die rechte Haelfte merkt sich das nicht selbst und
+    // braucht es nach jedem Neustart wieder
+    split_sync_invoke(RAIL_PWR_DEV, dilemma_max_input_pad_options());
+#endif
+#else
+    split_sync_invoke(RGB_UG_DEV, on ? RGB_ON_CMD : RGB_OFF_CMD);
+#endif
 }
 
 static void rgb_split_sync_work_cb(struct k_work *work);
@@ -106,6 +139,21 @@ static void rgb_split_sync_work_cb(struct k_work *work) {
 #endif
 }
 
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_POWER)
+
+// Licht und Schiene haengen an den Zeiten aus src/power.c, das bei jedem Wechsel hier anruft
+void dilemma_max_split_sync(uint8_t retries) {
+    atomic_set(&wake_retries_left, retries);
+    k_work_reschedule(&rgb_split_sync_work, DISPATCH_DELAY);
+}
+
+void dilemma_max_split_send_sleep(void) {
+    split_sync_invoke(RAIL_PWR_DEV, DILEMMA_MAX_RAIL_SLEEP);
+}
+
+#else
+
+// Ohne src/power.c haengt das Underglow an ZMKs Idle-Abschaltung, also am Activity-State
 static int rgb_split_sync_listener(const zmk_event_t *eh) {
     const struct zmk_activity_state_changed *ev = as_zmk_activity_state_changed(eh);
 
@@ -122,6 +170,8 @@ static int rgb_split_sync_listener(const zmk_event_t *eh) {
 
 ZMK_LISTENER(dilemma_max_rgb_split_sync, rgb_split_sync_listener);
 ZMK_SUBSCRIPTION(dilemma_max_rgb_split_sync, zmk_activity_state_changed);
+
+#endif
 
 #if IS_ENABLED(CONFIG_ZMK_SPLIT_BLE)
 /*

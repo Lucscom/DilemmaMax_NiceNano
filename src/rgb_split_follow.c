@@ -4,7 +4,7 @@
  * Das Peripheral entscheidet ueber sein Underglow nicht mehr selbst, das Central
  * gibt den Zustand vor (src/rgb_split_sync.c). Ist das Central weg - ausgeschaltet,
  * im Deep Sleep oder ausser Reichweite - kommt kein Kommando mehr und der Strip
- * bliebe bis zum eigenen Sleep-Timeout an, also bis zu 15 Minuten.
+ * bliebe bis zum eigenen Sleep-Timeout an, also bis zu 5 Minuten.
  *
  * Deshalb gilt hier: ohne Split-Verbindung ist das Underglow aus.
  *

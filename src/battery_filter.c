@@ -2,7 +2,8 @@
  * Dilemma Max - Akkumessung, die den Spannungseinbruch durch das Underglow herausrechnet.
  *
  * ZMK misst die Akkuspannung am VDDH-Pin (zmk,battery-nrf-vddh) und rechnet sie linear in
- * Prozent um: 3450 mV = 0 %, 4200 mV = 100 %, also 7,5 mV pro Prozent. Gemessen wird nur,
+ * Prozent um: 3450 mV = 0 %, 4200 mV = 100 %, also 7,5 mV pro Prozent. (Die Umrechnung
+ * macht inzwischen mv_to_pct() weiter unten mit einer eigenen Kurve.) Gemessen wird nur,
  * solange die Haelfte aktiv ist - und genau dann leuchten die 51 LEDs. Deren Strom laesst
  * die Spannung am Innenwiderstand von Akku, Schalter und Leiterbahnen einbrechen, je nach
  * Helligkeit, Farbe und Effekt unterschiedlich stark. Schon 75 mV sind 10 %. Die Anzeige
@@ -19,14 +20,17 @@
  *    zurueck), ist ihre Differenz der Einbruch. Der wird gemerkt und auf alle Messungen
  *    mit leuchtendem Underglow aufgeschlagen. Er lernt sich also selbst und zieht nach,
  *    wenn Helligkeit oder Effekt geaendert werden.
- *  - Das Ergebnis laeuft durch einen Tiefpass, und der Prozentwert aendert sich erst ab
- *    zwei Prozent Abstand, damit er nicht um eine Stelle zappelt.
+ *  - Der Prozentwert aendert sich erst ab zwei Prozent Abstand, damit er nicht um eine
+ *    Stelle zappelt. Die Spannung selbst wird nicht weiter geglaettet.
  *
  * Ein Abruf durch ZMK loest bewusst keine Messung aus: ZMK fragt genau in dem Moment, in
  * dem die Haelfte aufwacht - da gilt das Underglow schon als an, leuchtet aber noch nicht.
  *
  * 0 % wird nie gemeldet, das Minimum ist 1: der Wert 0 steht im Split-Protokoll und auf
  * dem Display fuer "nicht verbunden".
+ *
+ * Am USB-Kabel gilt das alles nicht: dort misst VDDH den Ausgang des Ladechips, und der
+ * Ladestand kommt aus einer eigenen Kennlinie, siehe battery_filter_charging().
  */
 
 #define DT_DRV_COMPAT dilemma_battery_filter
@@ -40,6 +44,10 @@
 
 #include <stdlib.h>
 
+#include <dilemma_max/battery.h>
+#if IS_ENABLED(CONFIG_ZMK_USB)
+#include <zmk/usb.h>
+#endif
 #include <zmk/rgb_underglow.h>
 #include <zmk/workqueue.h>
 
@@ -54,9 +62,16 @@ LOG_MODULE_REGISTER(dilemma_max_battery, CONFIG_ZMK_LOG_LEVEL);
 #define SAG_PAIR_MAX_MS (2 * 60 * MSEC_PER_SEC)
 // Mehr ist kein Einbruch durch die LEDs mehr, sondern ein gestecktes oder gezogenes Kabel.
 #define SAG_MAX_MV 400
-// Ab diesem Sprung folgt der Tiefpass sofort (USB gesteckt oder gezogen).
-#define FILTER_SNAP_MV 150
 #define SOC_HYSTERESIS 2
+// Am USB-Kabel haelt der Ladechip VDDH etwa 225 mV ueber der Zelle, hoechstens aber auf
+// 4,4 V. Ab hier ist diese Grenze erreicht und die Spannung sagt nichts mehr.
+#define CHARGE_PLATEAU_MV 4375
+// Ladestand, bei dem die Grenze erreicht wird, und wie lange die restlichen Prozent bis 100
+// danach noch dauern
+#define CHARGE_PLATEAU_PCT 91
+#define CHARGE_TAIL_MS (30 * 60 * MSEC_PER_SEC)
+// Obergrenze fuer den Anstieg beim Laden, etwas ueber den rechnerischen 46 % pro Stunde
+#define CHARGE_MAX_PCT_PER_HOUR 60
 
 struct battery_filter_config {
     const struct device *source;
@@ -77,6 +92,13 @@ struct battery_filter_data {
 
     bool have_sag;
     int32_t sag_mv;
+
+    // Laden am USB-Kabel, siehe battery_filter_charging()
+    bool charging;
+    int64_t plateau_ts; // seit wann VDDH an der 4,4-V-Grenze steht, 0 = noch nicht
+    uint8_t plateau_pct; // Ladestand in dem Moment, ab dem die Zeit zaehlt
+    int64_t charge_start_ts;  // Beginn des Ladevorgangs ...
+    uint8_t charge_start_pct; // ... und der Ladestand in dem Moment
 };
 
 static bool underglow_is_on(void) {
@@ -88,12 +110,71 @@ static bool underglow_is_on(void) {
 #endif
 }
 
-// Dieselbe Kennlinie wie ZMK (battery_common.c), nur mit 1 statt 0 als Untergrenze.
-static uint8_t mv_to_pct(int32_t mv) {
-    if (mv >= 4200) {
-        return 100;
+/*
+ * Kennlinien, Stuetzstellen in mV und Prozent, dazwischen linear. Beide stammen aus einem
+ * aufgezeichneten Ladevorgang der linken Haelfte von leer bis voll (220-mAh-Zelle, 100 mA
+ * Ladestrom, Underglow aus).
+ *
+ * Was dabei herauskam: am USB-Kabel liegt an VDDH nicht die Zelle, sondern der Ausgang des
+ * Ladechips. Der laeuft etwa 225 mV ueber der Zelle mit, von 3,4 V bis hoechstens 4,4 V.
+ * Die Spannung stieg knapp 120 Minuten lang gleichmaessig und blieb dann auf 4385 mV
+ * stehen. Bis dahin laedt der Chip mit konstantem Strom, die Zeit ist also der Ladestand:
+ * 120 min x 100 mA = 200 mAh, 91 % der Zelle.
+ *
+ * charge_curve ist genau diese Messung: VDDH am Kabel -> Ladestand.
+ *
+ * discharge_curve ist daraus abgeleitet, nicht gemessen: dieselben Ladestaende, 275 mV
+ * tiefer (225 mV Abstand des Ladechips, 50 mV, die eine Zelle beim Laden ueber ihrer
+ * Ruhespannung liegt). Der oberste Punkt ist gemessen: eine volle Zelle zeigte direkt nach
+ * dem Abziehen 4140 mV. Unten ist die Kurve am unsichersten.
+ */
+struct curve_point {
+    int16_t mv;
+    uint8_t pct;
+};
+
+static const struct curve_point charge_curve[] = {
+    {4380, 91}, {4330, 87}, {4280, 82}, {4235, 77}, {4200, 73}, {4170, 68}, {4140, 64},
+    {4110, 59}, {4085, 55}, {4055, 45}, {4035, 34}, {4000, 27}, {3960, 23}, {3910, 18},
+    {3850, 14}, {3800, 9},  {3710, 5},  {3400, 1},
+};
+
+static const struct curve_point discharge_curve[] = {
+    {4140, 100}, {4105, 91}, {4055, 87}, {4005, 82}, {3960, 77}, {3925, 73}, {3895, 68},
+    {3865, 64},  {3835, 59}, {3810, 55}, {3780, 45}, {3760, 34}, {3725, 27}, {3685, 23},
+    {3635, 18},  {3575, 14}, {3525, 9},  {3435, 5},  {3300, 1},
+};
+
+// Unten endet jede Kurve bei 1 statt 0, siehe oben
+static uint8_t curve_pct(const struct curve_point *curve, size_t len, int32_t mv) {
+    if (mv >= curve[0].mv) {
+        return curve[0].pct;
     }
-    return (uint8_t)CLAMP(mv * 2 / 15 - 459, 1, 100);
+
+    for (size_t i = 1; i < len; i++) {
+        if (mv >= curve[i].mv) {
+            int32_t span_mv = curve[i - 1].mv - curve[i].mv;
+            int32_t span_pct = curve[i - 1].pct - curve[i].pct;
+            return curve[i].pct + (mv - curve[i].mv) * span_pct / span_mv;
+        }
+    }
+
+    return 1;
+}
+
+static uint8_t mv_to_pct(int32_t mv) {
+    return curve_pct(discharge_curve, ARRAY_SIZE(discharge_curve), mv);
+}
+
+// Steckt das USB-Kabel? Links weiss das ZMK, rechts die VBUS-Erkennung des nRF52840.
+static bool usb_powered(void) {
+#if IS_ENABLED(CONFIG_ZMK_USB)
+    return zmk_usb_is_powered();
+#elif IS_ENABLED(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT)
+    return dilemma_max_usb_powered();
+#else
+    return false;
+#endif
 }
 
 static int read_source_mv(const struct device *source, int32_t *mv) {
@@ -137,6 +218,68 @@ static int read_median_mv(const struct device *source, int32_t *mv) {
     return 0;
 }
 
+/*
+ * Laden am USB-Kabel. Der Ladestand kommt aus charge_curve, solange VDDH noch steigt.
+ *
+ * Steht VDDH an der 4,4-V-Grenze, hat die Zelle mindestens 91 %, und die Spannung verraet
+ * nicht mehr, wie weit sie ist - auch nicht, ob der Ladechip schon fertig ist. Was dann
+ * angezeigt wird, haengt davon ab, was vorher bekannt war:
+ *
+ *  - Die Grenze wurde in diesem Ladevorgang von unten erreicht: ab 91 % zaehlt die Zeit,
+ *    30 Minuten fuer die restlichen 9 %.
+ *  - Das Kabel kam bei laufender Tastatur dran: es geht mit dem Stand weiter, den die
+ *    Zelle davor ohne Kabel hatte. War sie voll, bleibt sie voll.
+ *  - Die Haelfte ist am Kabel gestartet und VDDH steht schon an der Grenze: dann haengt
+ *    sie vermutlich schon laenger am Ladegeraet, und sie gilt als voll. Das kann zu frueh
+ *    sein, wenn der Neustart genau in die letzte halbe Stunde des Ladens faellt.
+ *
+ * Waehrend eines Ladevorgangs faellt der Wert nie: das Underglow zieht VDDH etwas herunter,
+ * und die Anzeige soll deshalb nicht rueckwaerts laufen.
+ */
+static void battery_filter_charging(struct battery_filter_data *data, int32_t mv, int64_t now) {
+    bool started = !data->charging;
+    // Stand der Zelle von vor dem Einstecken, falls es einen gibt
+    bool known = !started || data->have_value;
+    uint8_t before = known ? data->state_of_charge : 0;
+    uint8_t pct;
+
+    data->filtered_mv = mv;
+
+    if (mv >= CHARGE_PLATEAU_MV) {
+        if (data->plateau_ts == 0) {
+            data->plateau_ts = MAX(now, 1);
+            data->plateau_pct = known ? MAX(before, CHARGE_PLATEAU_PCT) : 100;
+        }
+        int64_t tail = MIN(now - data->plateau_ts, CHARGE_TAIL_MS);
+        pct = MIN(data->plateau_pct + (100 - CHARGE_PLATEAU_PCT) * tail / CHARGE_TAIL_MS, 100);
+    } else {
+        data->plateau_ts = 0;
+        pct = curve_pct(charge_curve, ARRAY_SIZE(charge_curve), mv);
+    }
+
+    // Schneller, als der Ladechip liefern kann, steigt der Wert nicht: 100 mA in eine
+    // 220-mAh-Zelle sind 0,76 % pro Minute. Sonst spraenge die Anzeige beim Einstecken,
+    // weil Lade- und Entladekurve nicht auf das Prozent genau aneinander passen und die
+    // Zellspannung beim Laden sofort ein Stueck anzieht.
+    if (started) {
+        data->charge_start_ts = now;
+        data->charge_start_pct = known ? before : pct;
+    }
+    int64_t allowed = data->charge_start_pct +
+                      (now - data->charge_start_ts) * CHARGE_MAX_PCT_PER_HOUR / (3600 * MSEC_PER_SEC);
+    pct = MIN(pct, allowed);
+
+    // 1 liest das Display beim Laden als "Stand unbekannt"
+    data->state_of_charge = MAX(MAX(pct, before), 2);
+
+    data->charging = true;
+    data->have_value = true;
+    // Als Paar fuer den Einbruch taugt die Messung nicht
+    data->have_prev = false;
+
+    LOG_INF("Akku laedt: VDDH %d mV => %d%%", mv, data->state_of_charge);
+}
+
 static int battery_filter_sample(const struct device *dev) {
     const struct battery_filter_config *config = dev->config;
     struct battery_filter_data *data = dev->data;
@@ -156,6 +299,18 @@ static int battery_filter_sample(const struct device *dev) {
 
     int64_t now = k_uptime_get();
 
+    if (usb_powered()) {
+        battery_filter_charging(data, mv, now);
+        return 0;
+    }
+    if (data->charging) {
+        // Kabel ab: die Messung zeigt wieder die Zelle und liegt gut 200 mV tiefer. Von vorn
+        // anfangen, ohne Hysterese zum Wert aus der Ladekurve.
+        data->charging = false;
+        data->plateau_ts = 0;
+        data->have_value = false;
+    }
+
     if (data->have_prev && data->prev_loaded != loaded && now - data->prev_ts <= SAG_PAIR_MAX_MS) {
         int32_t sag = loaded ? data->prev_mv - mv : mv - data->prev_mv;
         if (sag >= 0 && sag <= SAG_MAX_MV) {
@@ -170,11 +325,9 @@ static int battery_filter_sample(const struct device *dev) {
 
     int32_t estimate = mv + (loaded ? data->sag_mv : 0);
 
-    if (!data->have_value || abs(estimate - data->filtered_mv) > FILTER_SNAP_MV) {
-        data->filtered_mv = estimate;
-    } else {
-        data->filtered_mv += (estimate - data->filtered_mv) / 4;
-    }
+    // Kein Tiefpass: der Median aus fuenf Messungen ist ruhig genug, und ein Tiefpass
+    // hinkte der Zelle im aufgezeichneten Ladevorgang sichtbar hinterher.
+    data->filtered_mv = estimate;
 
     uint8_t pct = mv_to_pct(data->filtered_mv);
     if (!data->have_value || pct == 100 ||
@@ -183,7 +336,7 @@ static int battery_filter_sample(const struct device *dev) {
     }
     data->have_value = true;
 
-    LOG_DBG("Akku %d mV (%s), Einbruch %d mV, gefiltert %d mV => %d%%", mv,
+    LOG_INF("Akku %d mV (%s), Einbruch %d mV, bereinigt %d mV => %d%%", mv,
             loaded ? "Underglow an" : "Underglow aus", data->sag_mv, data->filtered_mv,
             data->state_of_charge);
 
@@ -236,12 +389,27 @@ static int battery_filter_channel_get(const struct device *dev, enum sensor_chan
         val->val2 = (data->filtered_mv % 1000) * 1000;
         return 0;
     case SENSOR_CHAN_GAUGE_STATE_OF_CHARGE:
-        val->val1 = data->state_of_charge;
+        // Auf der rechten Haelfte bekommt schon ZMK den kodierten Wert. Sonst schriebe es
+        // bei jeder Messung den rohen in den Battery Service, und ein ungerader Rohwert
+        // stuende auf dem Display als "laedt", bis ihn die Kodierung wieder ueberschreibt.
+        val->val1 = IS_ENABLED(CONFIG_DILEMMA_MAX_PERIPHERAL_CHARGE_REPORT)
+                        ? dilemma_max_charge_encode(data->state_of_charge)
+                        : data->state_of_charge;
         val->val2 = 0;
         return 0;
     default:
         return -ENOTSUP;
     }
+}
+
+static struct battery_filter_data battery_filter_data_0;
+
+uint8_t dilemma_max_battery_filter_level(void) {
+    return battery_filter_data_0.have_value ? battery_filter_data_0.state_of_charge : 0;
+}
+
+int32_t dilemma_max_battery_filter_mv(void) {
+    return battery_filter_data_0.have_value ? battery_filter_data_0.filtered_mv : 0;
 }
 
 static const struct sensor_driver_api battery_filter_api = {
@@ -262,7 +430,6 @@ static int battery_filter_init(const struct device *dev) {
     return 0;
 }
 
-static struct battery_filter_data battery_filter_data_0;
 static const struct battery_filter_config battery_filter_config_0 = {
     .source = DEVICE_DT_GET(DT_INST_PHANDLE(0, source)),
 };

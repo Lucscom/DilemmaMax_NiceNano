@@ -1,0 +1,8 @@
+description: |
+  Dilemma Max: schaltet die 3,3-V-Schiene der Haelfte, auf der es laeuft (src/rail_idle.c).
+  Das Central ruft es ueber den Split-Link auf dem Peripheral auf, param1 = 1 an, 0 aus.
+  Nicht fuer die Keymap gedacht.
+
+compatible: "dilemma,behavior-rail-power"
+
+include: one_param.yaml

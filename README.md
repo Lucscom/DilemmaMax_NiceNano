@@ -329,6 +329,90 @@ the right half connects, and only that switches the strip on. Switching it on
 at connect, as an earlier version did, lit the right half whenever it was
 powered on while the left half was idle.
 
+### Settings menu and power timing
+
+ZMK's idle and sleep timeouts are compiled in. `src/power.c` on the left half
+runs its own clock since the last input instead (keys of both halves, encoders,
+trackpad) and applies three timeouts that can be changed on the display.
+
+The menu has three pages:
+
+| Page | Entry | Effect | Values |
+|---|---|---|---|
+| Power | `Light` | underglow off after that time without input | 10 s, 30 s, 1, 2, 5 min, never |
+| | `Display` | 3.3 V rail off: LEDs unpowered, display dark, trackpad off | 30 s, 1, 2, 5, 10 min, never |
+| | `Sleep` | deep sleep on both halves | 1, 2, 5, 10, 30 min, never |
+| Touch | `Speed` | cursor speed, 3 is the former fixed ratio | 1 to 5 |
+| | `Scroll` | scroll speed | 1 to 5 |
+| | `Invert` | reverses the scroll direction | off, on |
+| | `Glide` | scrolling coasts after lifting the fingers | on, off |
+| | `Tap` | tapping the pad clicks | on, off |
+| Input | `L Knob` | left encoder: volume, scrolling, underglow brightness or zoom | vol, scrl, light, zoom |
+| | `R Knob` | the same for the right encoder | vol, scrl, light, zoom |
+| | `OS` | Mac or Windows for the output currently selected | mac, win |
+
+Power defaults are 30 s, 30 s and 5 min. Every value is stored per output: each
+Bluetooth profile and USB has its own set, and switching profiles switches the
+whole set along with it.
+
+Hold NAV and press the left encoder to open the menu. Turning selects an entry,
+pressing opens a page or steps a value. Tapping NAV goes back one level, NAV
+plus a press of the encoder closes the menu from any level, and 20 s without
+input closes it too. While
+it is open the keymap's top layer (`MENU`) is active, where the encoder is
+bound to the menu and the NAV key to "back"; nothing is intercepted and all
+other keys keep working.
+
+The top level also has `Saving`, the power saving mode: the 3.3 V rail stays
+off for good on both halves, also on USB. In power saving mode there is no underglow, no display and no trackpad, only
+keys and encoders. Since the display is dark, the way out is blind: hold NAV
+and press the left encoder, which ends the mode and opens the menu. The mode is
+one switch for all outputs and survives deep sleep.
+
+Where the Touch and Input settings take effect: speed and direction are applied
+on the left half by the `pad_tune` input processor (`src/pad_tune.c`), which
+replaces the fixed `zip_xy_scaler`. `Glide` and `Tap` are decided by the
+trackpad driver on the right half, so the left half sends them along with the
+underglow state. Both encoders are bound to the `&knob` behavior
+(`src/knob.c`), which runs the selected function through `&kp`, `&msc` or
+`&rgb_ug`. With NAV held the encoders keep the NAV layer's bindings.
+
+A keyboard cannot detect the host's operating system, hence the `OS` entry. While an output counts as Windows, the
+keymap's `WIN` layer is active (it overrides no key at the moment: Ctrl, Alt
+and GUI stay where they are), NAV gets Win+H and Win+Tab in place of Globe and
+Mission Control, and the trackpad gestures send the shortcuts from
+`keycodes-win` (virtual desktops, task view, show desktop, Ctrl zoom). The
+layer order is fixed in `include/dt-bindings/dilemma_max/layers.h`.
+
+The right half has no clock of its own. The left half commands its underglow,
+its rail and its deep sleep, because only the central sees the input of both
+halves. Without a split connection for two minutes the right half goes to sleep
+by itself. ZMK's own sleep timeout is set to 24 h and its idle underglow
+switch-off is disabled on both halves.
+
+### 3.3 V rail off while idle
+
+The 51 LEDs draw their quiescent current even when dark, 20 to 35 mA per half,
+which was nearly all of an idle half's consumption. `src/rail_idle.c` switches
+the nice!nano's 3.3 V rail (P0.13) off after the `POWER` time from the menu
+above and back on with the next key press. Either half
+keeps its rail on and does not sleep while it is on a USB cable or charger.
+
+The right half follows the central: its own idle state only knows its own
+keys. The central sends the rail state together with the underglow state
+through the `railpwr` behavior. A key press on the right half switches its
+rail on at once, and without a split connection the rail is off.
+
+What this costs:
+
+- The nice!view is dark while idle and is redrawn completely afterwards.
+- The trackpad is unpowered while idle. It cannot wake the keyboard, and after
+  a key press it needs about a second to start and calibrate again. The driver
+  handles this through its PM suspend and resume actions.
+
+The pin is driven directly, not through ZMK's ext-power driver, which would
+store every change in the settings and bring a half back up with the rail off.
+
 ### Battery level
 
 ZMK measures the battery on the VDDH pin and maps it linearly, 3450 mV to 0 %
@@ -342,9 +426,29 @@ was empty.
 samples every 30 s on its own, also while idle, and sorts each sample by
 whether the underglow is on. Two neighbouring samples on either side of an
 on/off change give the voltage drop, which is then added back to every sample
-taken with the LEDs lit. The result is low-pass filtered and the percentage
-only moves in steps of two. The drop is learned again after every boot, so the
+taken with the LEDs lit. The voltage is not smoothed any further; the
+percentage only moves in steps of two. The drop is learned again after every boot, so the
 reading can be a few percent low until the half has gone idle once.
+
+On USB the VDDH pin does not show the cell but the output of the charger chip,
+which runs about 225 mV above the cell, from 3.4 V up to a limit of 4.4 V. A
+recorded charge of the left half from empty to full (220 mAh cell, 100 mA)
+showed the voltage rising steadily for just under 120 minutes and then sitting
+at 4385 mV. Up to that point the chip charges with constant current, so time is
+charge: 120 min x 100 mA is 200 mAh, 91 % of the cell.
+
+While charging, the level comes from that recording (`charge_curve` in
+`src/battery_filter.c`). Once the voltage sits at the limit the cell has at
+least 91 % and the voltage says nothing more. If the limit was reached from
+below during this charge, the remaining 9 % are counted by time, 30 minutes to
+100 %. If the cable was plugged in while the keyboard was running, the level
+continues from what the cell had before. A half that boots on USB with the
+voltage already at the limit counts as full. Only the charge LED says when the
+chip is really done.
+
+On battery, the level comes from `discharge_curve`. It is derived from the same
+recording, 275 mV lower, not measured; only its top point is, a full cell read
+4140 mV right after unplugging. The low end is the least certain part.
 
 The filter never reports 0 %: that value means "not connected" on the display.
 

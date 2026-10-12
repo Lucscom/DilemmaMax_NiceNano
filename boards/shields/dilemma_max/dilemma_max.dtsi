@@ -23,6 +23,35 @@
         source = <&vbatt>;
     };
 
+    behaviors {
+        // Schaltet die 3,3-V-Schiene und schickt die Haelfte schlafen, siehe src/rail_idle.c. Wird vom Central auf dem
+        // Peripheral aufgerufen, der Knotenname darf deshalb hoechstens 8 Zeichen haben.
+        rail_pwr: railpwr {
+            compatible = "dilemma,behavior-rail-power";
+            #binding-cells = <1>;
+        };
+
+        // Einstellungsmenue auf dem nice!view, siehe src/menu.c. Parameter: DM_MENU_* aus
+        // dt-bindings/dilemma_max/menu.h. Laeuft nur auf der linken Haelfte.
+        menu: menu {
+            compatible = "dilemma,behavior-menu";
+            #binding-cells = <1>;
+        };
+
+        // Encoder im Menue: drehen waehlt den Eintrag, siehe src/menu_knob.c
+        menu_knob: menu_knob {
+            compatible = "dilemma,behavior-menu-knob";
+            #sensor-binding-cells = <0>;
+        };
+
+        // Encoder mit einstellbarer Funktion, siehe src/knob.c. Parameter: DM_KNOB_* aus
+        // dt-bindings/dilemma_max/knob.h. Laeuft nur auf der linken Haelfte.
+        knob: knob {
+            compatible = "dilemma,behavior-knob";
+            #binding-cells = <1>;
+        };
+    };
+
     kscan: kscan {
         compatible = "zmk,kscan-gpio-matrix";
         diode-direction = "row2col";
@@ -108,7 +137,9 @@
         // Kein zip_button_behaviors: das Ausloesen von Tastenverhalten aus den Ereignissen
         // eines per Split angebundenen Trackpads liess beide Haelften abstuerzen. Gesten
         // laufen stattdessen ueber gesture_keys (src/gesture_keys.c).
-        input-processors = <&gesture_keys &zip_xy_scaler 2 5>;
+        // pad_tune skaliert Cursor und Scrollen nach den Einstellungen im Menue; seine
+        // mittlere Stufe ist das fruehere feste 2:5.
+        input-processors = <&gesture_keys &pad_tune>;
     };
 };
 
@@ -155,6 +186,12 @@
     // Trackpad-Gesten -> Tastenkuerzel fuer macOS. Der Treiber (rechts) meldet die Geste als
     // eigenen Code, dieser Processor im Listener (links) loest das Kuerzel aus. Richtungen
     // wie am Mac-Trackpad: Finger nach links holt den Space rechts daneben.
+    // Cursor- und Scroll-Geschwindigkeit des Trackpads, einstellbar im Menue (src/pad_tune.c)
+    pad_tune: pad_tune {
+        compatible = "dilemma,input-processor-pad-tune";
+        #input-processor-cells = <0>;
+    };
+
     gesture_keys: gesture_keys {
         compatible = "dilemma,input-processor-gesture-keys";
         #input-processor-cells = <0>;
@@ -166,5 +203,9 @@
         keycodes = <LC(RIGHT) LC(LEFT)     // Space rechts / links
                     LC(UP) LC(DOWN)        // Mission Control / App-Expose
                     LG(KP_PLUS) LG(KP_MINUS)>; // Zoom rein / raus
+        // Windows: virtuelle Desktops, Task-Ansicht, Desktop zeigen, Zoom mit Ctrl
+        keycodes-win = <LC(LG(RIGHT)) LC(LG(LEFT))
+                        LG(TAB) LG(D)
+                        LC(KP_PLUS) LC(KP_MINUS)>;
     };
 };

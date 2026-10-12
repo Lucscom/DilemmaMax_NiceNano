@@ -1,0 +1,8 @@
+description: |
+  Dilemma Max: skaliert Cursor- und Scroll-Events des Trackpads nach den Einstellungen aus
+  dem Menue (src/pad_tune.c). Laeuft im Input-Listener der linken Haelfte anstelle des
+  festen zip_xy_scaler.
+
+compatible: "dilemma,input-processor-pad-tune"
+
+include: ip_zero_param.yaml

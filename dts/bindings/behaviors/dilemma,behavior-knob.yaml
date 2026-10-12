@@ -1,0 +1,8 @@
+description: |
+  Dilemma Max: Encoder mit einstellbarer Funktion (src/knob.c). param1 ist einer der Werte
+  DM_KNOB_* aus dt-bindings/dilemma_max/knob.h und sagt nur, welcher Encoder wohin gedreht
+  wurde; die Funktion selbst kommt aus dem Menue.
+
+compatible: "dilemma,behavior-knob"
+
+include: one_param.yaml

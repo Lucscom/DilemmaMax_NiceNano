@@ -5,12 +5,14 @@
 #include <string.h>
 #include <zephyr/init.h>
 #include <zephyr/input/input.h>
+#include <zephyr/pm/device.h>
 #include <zephyr/sys/byteorder.h>
 
 #include <zephyr/logging/log.h>
 
 #include "input_maxtouch.h"
 #include <dt-bindings/dilemma_max/gestures.h>
+#include <dilemma_max/trackpad.h>
 
 LOG_MODULE_REGISTER(maxtouch, CONFIG_INPUT_LOG_LEVEL);
 
@@ -194,6 +196,21 @@ static void mxt_click(const struct device *dev, uint16_t code) {
     data->button_held = true;
     input_report_key(dev, code, 1, true, K_NO_WAIT);
     k_work_schedule(&data->click_release_work, K_MSEC(MXT_CLICK_RELEASE_MS));
+}
+
+// Klick durch Tippen: laesst sich im Menue abschalten (Touch > Tap). Der Seitenwechsel per
+// Zwei-Finger-Wischer ist kein Tippen und ruft mxt_click() direkt.
+static void mxt_tap(const struct device *dev, uint16_t code) {
+    struct mxt_data *data = dev->data;
+    if (data->tap_enabled) {
+        mxt_click(dev, code);
+    }
+}
+
+void mxt_set_options(const struct device *dev, bool tap, bool momentum) {
+    struct mxt_data *data = dev->data;
+    data->tap_enabled = tap;
+    data->momentum_enabled = momentum;
 }
 
 // Der Chip misst im Free-Run und liefert bis zu 300 Positionen/s. Jede davon wird zu zwei
@@ -736,13 +753,13 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
                 LOG_INF("gesture: drag end (second_tap=%d)", second_tap);
                 mxt_button_release(data);
                 if (second_tap) {
-                    mxt_click(dev, INPUT_BTN_0); // Doppelklick
+                    mxt_tap(dev, INPUT_BTN_0); // Doppelklick
                 }
             } else if (data->gesture_max_fingers >= 3) {
                 LOG_INF("gesture: 3-finger end dx=%d dy=%d dur=%u", data->gesture_dx,
                         data->gesture_dy, dur);
                 if (!data->gesture_moved && !data->swipe_fired && dur <= MXT_TAP2_MAX_MS) {
-                    mxt_click(dev, INPUT_BTN_2); // Drei-Finger-Tap = Mittelklick
+                    mxt_tap(dev, INPUT_BTN_2); // Drei-Finger-Tap = Mittelklick
                 }
             } else if (data->gesture_max_fingers == 2 && !data->swipe_fired &&
                        dur <= MXT_FLICK_MAX_MS &&
@@ -753,7 +770,7 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
                 LOG_INF("gesture: page %s (dx=%d dur=%u)",
                         data->gesture_dx > 0 ? "back" : "forward", data->gesture_dx, dur);
                 mxt_click(dev, data->gesture_dx > 0 ? MXT_BTN_PAGE_BACK : MXT_BTN_PAGE_FORWARD);
-            } else if (config->scroll_momentum && data->gesture_max_fingers >= 2 &&
+            } else if (data->momentum_enabled && data->gesture_max_fingers >= 2 &&
                        data->gesture_moved &&
                        (mxt_abs32(data->scroll_vel_x) + mxt_abs32(data->scroll_vel_y)) >=
                            MXT_MOMENTUM_START_VEL &&
@@ -770,9 +787,9 @@ static void mxt_process_touch(const struct device *dev, uint8_t idx, enum t100_t
                 bool two_finger_tap = data->gesture_max_fingers == 2 && !data->swipe_fired &&
                                       (!data->gesture_moved || dur <= MXT_TAP2_IGNORE_MOVE_MS);
                 if (data->gesture_max_fingers == 1 && !data->gesture_moved && dur <= max_ms) {
-                    mxt_click(dev, INPUT_BTN_0);
+                    mxt_tap(dev, INPUT_BTN_0);
                 } else if (two_finger_tap && dur <= max_ms) {
-                    mxt_click(dev, INPUT_BTN_1);
+                    mxt_tap(dev, INPUT_BTN_1);
                 }
             }
         }
@@ -900,6 +917,10 @@ static void mxt_report_data(const struct device *dev) {
 static void mxt_work_cb(struct k_work *work) {
     struct mxt_data *data = CONTAINER_OF(work, struct mxt_data, work);
     const struct mxt_config *config = data->dev->config;
+    // Noch aus der Zeit vor dem Abschalten in der Queue
+    if (data->suspended) {
+        return;
+    }
     mxt_report_data(data->dev);
     if (data->irq_mode) {
         // Pegel-Interrupt: CHG bleibt low solange Nachrichten anstehen, deshalb erst nach
@@ -1514,6 +1535,8 @@ static int mxt_init(const struct device *dev) {
     int ret;
 
     data->dev = dev;
+    data->tap_enabled = true;
+    data->momentum_enabled = config->scroll_momentum;
 
     LOG_INF("maxtouch init: i2c addr 0x%02x, deferring probe by %dms", config->bus.addr,
             MXT_INIT_FIRST_DELAY_MS);
@@ -1540,6 +1563,57 @@ static int mxt_init(const struct device *dev) {
 
     return 0;
 }
+
+#ifdef CONFIG_PM_DEVICE
+/*
+ * SUSPEND: das Pad verliert gleich seine Versorgung. RESUME: sie ist wieder da.
+ *
+ * Zwei Aufrufer:
+ *  - src/rail_idle.c schaltet die 3,3-V-Schiene im Idle ab und beim naechsten Tastendruck
+ *    wieder ein. Nach dem Einschalten startet der Chip neu, deshalb laeuft bei RESUME die
+ *    komplette Initialisierung noch einmal, wie nach dem Booten.
+ *  - ZMK ruft SUSPEND fuer alle Geraete direkt vor dem Deep Sleep auf (zmk/app/src/pm.c).
+ *
+ * Der CHG-Interrupt muss in beiden Faellen aus sein: ohne Versorgung faellt CHG auf low,
+ * also auf den aktiven Pegel. Der Pegel-Interrupt laeuft auf dem nRF52 ueber den SENSE-
+ * Mechanismus des Pins, und der weckt den Controller auch aus System OFF - die rechte
+ * Haelfte wachte deshalb frueher sofort wieder auf und schlief praktisch nie.
+ */
+static int mxt_pm_action(const struct device *dev, enum pm_device_action action) {
+    struct mxt_data *data = dev->data;
+    const struct mxt_config *config = dev->config;
+
+    switch (action) {
+    case PM_DEVICE_ACTION_SUSPEND:
+        data->suspended = true;
+        data->ready = false;
+        k_timer_stop(&data->poll_timer);
+        gpio_pin_interrupt_configure_dt(&config->chg, GPIO_INT_DISABLE);
+        gpio_pin_configure_dt(&config->chg, GPIO_DISCONNECTED);
+        k_work_cancel_delayable(&data->init_work);
+        k_work_cancel_delayable(&data->recal_work);
+        k_work_cancel_delayable(&data->atch_work);
+        k_work_cancel_delayable(&data->diag_work);
+        k_work_cancel_delayable(&data->stale_work);
+        data->zero_touch_pending = false;
+        // Ein Finger, der gerade aufliegt, bekaeme sein Abheben nie gemeldet
+        if (data->active_mask != 0) {
+            mxt_reset_touches(dev);
+        }
+        mxt_momentum_stop(data);
+        return 0;
+    case PM_DEVICE_ACTION_RESUME:
+        data->suspended = false;
+        data->irq_mode = false;
+        data->init_attempts = 0;
+        gpio_pin_configure_dt(&config->chg, GPIO_INPUT);
+        k_work_schedule(&data->init_work, K_MSEC(MXT_INIT_FIRST_DELAY_MS));
+        return 0;
+    default:
+        return -ENOTSUP;
+    }
+}
+#endif /* CONFIG_PM_DEVICE */
 
 #define MXT_INST(n)                                                                                     \
     static struct mxt_data mxt_data_##n;                                                                \
@@ -1580,7 +1654,8 @@ static int mxt_init(const struct device *dev) {
         .idle_syncs_per_x = DT_INST_PROP_OR(n, idle_syncs_per_x, 20),                                   \
         .retransmission_compensation_disable = DT_INST_PROP(n, retransmission_compensation_disable),    \
     };                                                                                                  \
-    DEVICE_DT_INST_DEFINE(n, mxt_init, NULL, &mxt_data_##n, &mxt_config_##n, POST_KERNEL,               \
-                          CONFIG_INPUT_INIT_PRIORITY, NULL);
+    PM_DEVICE_DT_INST_DEFINE(n, mxt_pm_action);                                                         \
+    DEVICE_DT_INST_DEFINE(n, mxt_init, PM_DEVICE_DT_INST_GET(n), &mxt_data_##n, &mxt_config_##n,        \
+                          POST_KERNEL, CONFIG_INPUT_INIT_PRIORITY, NULL);
 
 DT_INST_FOREACH_STATUS_OKAY(MXT_INST)

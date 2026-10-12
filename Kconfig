@@ -145,3 +145,117 @@ config DILEMMA_MAX_BATTERY_FILTER
       Deren Strom drueckt die Akkuspannung, und bei 7,5 mV pro Prozent wird daraus eine
       Anzeige, die mit dem Underglow springt und viel zu frueh 0 % meldet. Der Treiber
       lernt den Einbruch aus Messungen mit und ohne Underglow und rechnet ihn heraus.
+
+config DILEMMA_MAX_RAIL_IDLE
+    bool "3,3-V-Schiene im Idle abschalten"
+    default y
+    depends on DT_HAS_DILEMMA_BEHAVIOR_RAIL_POWER_ENABLED
+    depends on DT_HAS_ZMK_EXT_POWER_GENERIC_ENABLED
+    depends on PM_DEVICE && ZMK_SLEEP
+    help
+      Schaltet die geschaltete 3,3-V-Schiene des nice!nano ab, sobald 30 s nichts
+      eingegeben wurde (CONFIG_ZMK_IDLE_TIMEOUT), und beim naechsten Tastendruck wieder
+      ein (src/rail_idle.c). An der Schiene haengen die LEDs, das nice!view und das
+      Trackpad; allein der Ruhestrom der 51 LEDs liegt bei 20 bis 35 mA pro Haelfte.
+
+      Folgen: das Display ist im Idle dunkel, und das Trackpad kann die Tastatur nicht
+      mehr aufwecken. Nach einem Tastendruck braucht es etwa eine Sekunde, bis es wieder
+      reagiert.
+
+      Beide Haelften gehoeren zusammen geflasht: das Central schaltet die Schiene des
+      Peripherals ueber ein eigenes Behavior.
+
+config DILEMMA_MAX_RAIL_IDLE
+    bool "3,3-V-Schiene im Idle abschalten"
+    default y
+    depends on DT_HAS_DILEMMA_BEHAVIOR_RAIL_POWER_ENABLED
+    depends on DT_HAS_ZMK_EXT_POWER_GENERIC_ENABLED
+    depends on PM_DEVICE && ZMK_SLEEP
+    help
+      Schaltet die geschaltete 3,3-V-Schiene des nice!nano ab, sobald 30 s nichts
+      eingegeben wurde (CONFIG_ZMK_IDLE_TIMEOUT), und beim naechsten Tastendruck wieder
+      ein (src/rail_idle.c). An der Schiene haengen die LEDs, das nice!view und das
+      Trackpad; allein der Ruhestrom der 51 LEDs liegt bei 20 bis 35 mA pro Haelfte.
+
+      Folgen: das Display ist im Idle dunkel, und das Trackpad kann die Tastatur nicht
+      mehr aufwecken. Nach einem Tastendruck braucht es etwa eine Sekunde, bis es wieder
+      reagiert.
+
+      Beide Haelften gehoeren zusammen geflasht: das Central schaltet die Schiene des
+      Peripherals ueber ein eigenes Behavior.
+
+config DILEMMA_MAX_BATTERY_CAPACITY_MAH
+    int "Kapazitaet des Akkus einer Haelfte in mAh"
+    default 220
+    depends on DILEMMA_MAX_BATTERY_FILTER
+    help
+      Fuer die Schaetzung des Ladestands am USB-Kabel: dort liegt am Messpin die
+      Versorgung an und nicht der Akku, der Fortschritt wird deshalb aus Ladestrom,
+      Zeit und Kapazitaet hochgerechnet.
+
+config DILEMMA_MAX_CHARGE_CURRENT_MA
+    int "Ladestrom in mA"
+    default 100
+    depends on DILEMMA_MAX_BATTERY_FILTER
+    help
+      Der Ladechip des nice!nano v2 laedt mit 100 mA.
+
+config DILEMMA_MAX_POWER
+    bool "Einstellbare Zeiten fuer Beleuchtung, 3,3-V-Schiene und Deep Sleep"
+    default y
+    depends on DILEMMA_MAX_RAIL_IDLE && DILEMMA_MAX_RGB_SPLIT_SYNC
+    depends on ZMK_POINTING && SETTINGS
+    help
+      Eigene Uhr seit der letzten Eingabe auf dem Central (src/power.c), mit drei Zeiten,
+      die sich zur Laufzeit aendern lassen und in den Settings liegen. Ersetzt ZMKs
+      einkompilierte Zeiten: dafuer gehoeren CONFIG_ZMK_RGB_UNDERGLOW_AUTO_OFF_IDLE=n
+      und ein sehr langer CONFIG_ZMK_IDLE_SLEEP_TIMEOUT gesetzt, auf beiden Haelften.
+
+      Die rechte Haelfte wird vom Central kommandiert, auch in den Deep Sleep.
+
+config DILEMMA_MAX_POWER_RAIL_ON_USB
+    bool "3,3-V-Schiene des Centrals am USB-Kabel anlassen"
+    default y
+    depends on DILEMMA_MAX_POWER
+    help
+      Am Kabel muss nichts gespart werden, und das Display bleibt so lesbar. Mit n geht
+      die Schiene auch am Kabel nach der eingestellten Zeit aus - zum Testen der
+      Abschaltung, ohne auf Akku umstecken zu muessen. Der Deep Sleep bleibt am Kabel in
+      jedem Fall aus.
+
+config DILEMMA_MAX_MENU
+    bool "Einstellungsmenue auf dem nice!view"
+    default y
+    depends on DT_HAS_DILEMMA_BEHAVIOR_MENU_ENABLED && DT_HAS_DILEMMA_BEHAVIOR_MENU_KNOB_ENABLED
+    depends on DILEMMA_MAX_POWER && DILEMMA_MAX_STATUS_SCREEN
+    depends on DILEMMA_MAX_INPUT_SETTINGS && DILEMMA_MAX_OS_MODE
+    help
+      Menue mit Untermenues fuer Stromsparen, Trackpad und Bedienung, bedient mit dem
+      linken Encoder ueber das Behavior &menu (src/menu.c). Die Keymap braucht dafuer
+      einen eigenen Layer, siehe DM_LAYER_MENU in dt-bindings/dilemma_max/layers.h.
+
+config DILEMMA_MAX_OS_MODE
+    bool "Mac oder Windows pro Bluetooth-Profil"
+    default y
+    depends on ZMK_BLE && SETTINGS && (!ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL)
+    depends on DILEMMA_MAX_STATUS_SCREEN
+    help
+      Merkt sich pro Ausgang (Bluetooth-Profile und USB), ob dort ein Mac oder ein
+      Windows-Rechner haengt (src/os_mode.c), einstellbar im Menue. Fuer Windows ist der
+      Layer DM_LAYER_WIN der Keymap aktiv, und die Trackpad-Gesten nehmen die Kuerzel aus
+      keycodes-win des gesture_keys-Knotens.
+
+config DILEMMA_MAX_INPUT_SETTINGS
+    bool "Einstellungen fuer Trackpad und Encoder"
+    default y
+    depends on DILEMMA_MAX_POWER && DT_HAS_DILEMMA_INPUT_PROCESSOR_PAD_TUNE_ENABLED
+    depends on DT_HAS_DILEMMA_BEHAVIOR_KNOB_ENABLED
+    help
+      Cursor- und Scroll-Geschwindigkeit, Scroll-Richtung, Tippen und Auslaufen des
+      Trackpads und die Funktion des linken Encoders, einstellbar im Menue und in den
+      Settings abgelegt (src/input_settings.c). Die Geschwindigkeiten rechnet der
+      Input-Processor pad_tune ein (src/pad_tune.c), der im Trackpad-Listener anstelle
+      des zip_xy_scaler steht.
+
+      Die Encoder haengen in der Keymap am Behavior &knob (src/knob.c), das die
+      eingestellte Funktion ueber &kp, &msc bzw. &rgb_ug ausfuehrt.

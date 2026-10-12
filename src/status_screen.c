@@ -35,6 +35,14 @@
 
 #include <dt-bindings/zmk/modifiers.h>
 
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+#include <dilemma_max/menu.h>
+#endif
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+#include <dilemma_max/os.h>
+#include <dt-bindings/dilemma_max/layers.h>
+#endif
+
 #define BLOCK_SIZE 68
 
 #define COLOR_BG                                                                                   \
@@ -156,7 +164,10 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
     lv_canvas_draw_rect(canvas, 9, y, 20, 9, &fg);
     lv_canvas_draw_rect(canvas, 10, y + 1, 18, 7, &bg);
     lv_canvas_draw_rect(canvas, 29, y + 2, 2, 5, &fg);
-    int fill = (16 * level + 50) / 100;
+    // Beim Laden ist der Wert eine Schaetzung (src/battery_filter.c). 1 heisst dabei, dass
+    // die Haelfte am Kabel gestartet ist und den Stand nicht kennt: dann nur Rahmen und Blitz.
+    bool unknown = battery.charging && level <= 1;
+    int fill = unknown ? 0 : (16 * level + 50) / 100;
     if (fill > 0) {
         lv_canvas_draw_rect(canvas, 11, y + 2, fill, 5, &fg);
     }
@@ -173,14 +184,158 @@ static void draw_battery_row(lv_obj_t *canvas, lv_coord_t y, const char *name,
         }
     }
 
+    if (unknown) {
+        return;
+    }
+
     char value[4];
     snprintf(value, sizeof(value), "%u", level);
     lv_canvas_draw_text(canvas, 40, y + 1, BLOCK_SIZE - 40, &value_dsc, value);
 }
 
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+/*
+ * Einstellungsmenue (src/menu.c): solange es offen ist, ersetzt es den oberen und den
+ * mittleren Block. Der untere zeigt weiter den Layer, also "MENU".
+ *
+ * Gezeigt wird die offene Seite des Menues, hoechstens fuenf Eintraege. Eine Zeile pro
+ * Eintrag: links ein Symbol, daneben klein der Name und darunter der Wert.
+ * Der gewaehlte Eintrag ist umrahmt und sein Symbol invertiert; rechts laeuft ein Balken
+ * mit, der die Position zeigt.
+ *
+ * Das Layout ist in einem 68x136 px hohen Feld beschrieben, das ueber beide Bloecke geht;
+ * jeder Block zeichnet seinen Ausschnitt (block_y = 0 oder BLOCK_SIZE). Rechtecke werden
+ * an der Grenze abgeschnitten, Text nicht - die Zeilenhoehe ist so gewaehlt, dass in der
+ * dritten Zeile der Name ueber und der Wert unter y = 68 liegt.
+ */
+#define MENU_ROW_HEIGHT 27
+#define MENU_ICON_X 2
+#define MENU_ICON_W 16
+#define MENU_ICON_H 21
+#define MENU_TEXT_X 21
+#define MENU_TEXT_W 43
+#define MENU_BAR_X 66
+
+static void menu_rect(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t x, lv_coord_t y,
+                      lv_coord_t w, lv_coord_t h, lv_color_t color) {
+    lv_coord_t top = MAX(y - block_y, 0);
+    lv_coord_t bottom = MIN(y + h - block_y, BLOCK_SIZE);
+    if (bottom <= top) {
+        return;
+    }
+
+    lv_draw_rect_dsc_t dsc;
+    init_rect(&dsc, color);
+    lv_canvas_draw_rect(canvas, x, top, w, bottom - top, &dsc);
+}
+
+static void menu_frame(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t x, lv_coord_t y,
+                       lv_coord_t w, lv_coord_t h, lv_color_t color) {
+    menu_rect(canvas, block_y, x, y, w, 1, color);
+    menu_rect(canvas, block_y, x, y + h - 1, w, 1, color);
+    menu_rect(canvas, block_y, x, y, 1, h, color);
+    menu_rect(canvas, block_y, x + w - 1, y, 1, h, color);
+}
+
+static void menu_text(lv_obj_t *canvas, lv_coord_t block_y, lv_coord_t x, lv_coord_t y,
+                      lv_coord_t w, lv_color_t color, const lv_font_t *font,
+                      lv_text_align_t align, const char *text) {
+    if (y < block_y || y >= block_y + BLOCK_SIZE) {
+        return;
+    }
+
+    lv_draw_label_dsc_t dsc;
+    init_label(&dsc, color, font, align);
+    lv_canvas_draw_text(canvas, x, y - block_y, w, &dsc, text);
+}
+
+// Symbole, 11x11 px, eine Zeile pro Wert, hoechstes der elf Bits links
+#define MENU_ICON_SIZE 11
+
+static const uint16_t menu_icons[DILEMMA_MAX_ICON_COUNT][MENU_ICON_SIZE] = {
+    [DILEMMA_MAX_ICON_SUN] = {0x020, 0x222, 0x104, 0x070, 0x0f8, 0x6fb, 0x0f8, 0x070, 0x104, 0x222, 0x020},
+    [DILEMMA_MAX_ICON_POWER] = {0x020, 0x020, 0x1ac, 0x326, 0x222, 0x421, 0x401, 0x401, 0x202, 0x306, 0x0f8},
+    [DILEMMA_MAX_ICON_SLEEP] = {0x7f0, 0x030, 0x060, 0x0c0, 0x180, 0x300, 0x7f0, 0x00f, 0x002, 0x004, 0x00f},
+    [DILEMMA_MAX_ICON_MONITOR] = {0x7ff, 0x401, 0x401, 0x401, 0x401, 0x401, 0x7ff, 0x070, 0x070, 0x1fc, 0x000},
+    [DILEMMA_MAX_ICON_PAD] = {0x3fe, 0x401, 0x401, 0x461, 0x461, 0x401, 0x401, 0x7ff, 0x421, 0x421, 0x3fe},
+    [DILEMMA_MAX_ICON_KNOB] = {0x0f8, 0x104, 0x222, 0x421, 0x421, 0x401, 0x401, 0x401, 0x202, 0x104, 0x0f8},
+    [DILEMMA_MAX_ICON_CURSOR] = {0x400, 0x600, 0x700, 0x780, 0x7c0, 0x7e0, 0x7f0, 0x7c0, 0x6c0, 0x460, 0x060},
+    [DILEMMA_MAX_ICON_SCROLL] = {0x020, 0x070, 0x0f8, 0x020, 0x020, 0x020, 0x020, 0x020, 0x0f8, 0x070, 0x020},
+    [DILEMMA_MAX_ICON_INVERT] = {0x100, 0x380, 0x7c4, 0x104, 0x104, 0x104, 0x104, 0x104, 0x11f, 0x00e, 0x004},
+    [DILEMMA_MAX_ICON_GLIDE] = {0x000, 0x780, 0x00e, 0x3df, 0x01f, 0x7df, 0x01f, 0x3df, 0x00e, 0x780, 0x000},
+    [DILEMMA_MAX_ICON_TAP] = {0x0f8, 0x104, 0x202, 0x471, 0x4f9, 0x4f9, 0x4f9, 0x471, 0x202, 0x104, 0x0f8},
+    [DILEMMA_MAX_ICON_BATTERY] = {0x000, 0x000, 0x7fe, 0x402, 0x5e3, 0x5e3, 0x5e3, 0x402, 0x7fe, 0x000, 0x000},
+};
+
+static void menu_icon(lv_obj_t *canvas, lv_coord_t block_y, uint8_t icon, lv_coord_t cx,
+                      lv_coord_t cy, lv_color_t color) {
+    if (icon >= DILEMMA_MAX_ICON_COUNT) {
+        return;
+    }
+
+    for (int row = 0; row < MENU_ICON_SIZE; row++) {
+        for (int col = 0; col < MENU_ICON_SIZE; col++) {
+            if (menu_icons[icon][row] & BIT(MENU_ICON_SIZE - 1 - col)) {
+                menu_rect(canvas, block_y, cx - MENU_ICON_SIZE / 2 + col,
+                          cy - MENU_ICON_SIZE / 2 + row, 1, 1, color);
+            }
+        }
+    }
+}
+
+static void draw_menu(lv_obj_t *canvas, lv_color_t cbuf[], lv_coord_t block_y) {
+    uint8_t cursor = dilemma_max_menu_cursor();
+
+    menu_rect(canvas, block_y, 0, block_y, BLOCK_SIZE, BLOCK_SIZE, COLOR_BG);
+
+    uint8_t count = MIN(dilemma_max_menu_item_count(), DILEMMA_MAX_MENU_MAX_ITEMS);
+
+    for (uint8_t item = 0; item < count; item++) {
+        lv_coord_t y = item * MENU_ROW_HEIGHT;
+        bool selected = item == cursor;
+        char label[9];
+        char value[9];
+
+        dilemma_max_menu_item_text(item, label, sizeof(label), value, sizeof(value));
+
+        if (selected) {
+            menu_frame(canvas, block_y, 0, y, MENU_BAR_X - 1, MENU_ROW_HEIGHT - 1, COLOR_FG);
+            menu_rect(canvas, block_y, MENU_ICON_X, y + 2, MENU_ICON_W, MENU_ICON_H + 1,
+                      COLOR_FG);
+        }
+        menu_icon(canvas, block_y, dilemma_max_menu_item_icon(item),
+                  MENU_ICON_X + MENU_ICON_W / 2, y + 13,
+                  selected ? COLOR_BG : COLOR_FG);
+
+        menu_text(canvas, block_y, MENU_TEXT_X, y + 1, MENU_TEXT_W, COLOR_FG,
+                  &lv_font_montserrat_10, LV_TEXT_ALIGN_LEFT, label);
+        menu_text(canvas, block_y, MENU_TEXT_X, y + 14, MENU_TEXT_W, COLOR_FG, &lv_font_unscii_8,
+                  LV_TEXT_ALIGN_LEFT, value);
+    }
+
+    // Positionsbalken
+    menu_rect(canvas, block_y, MENU_BAR_X + 1, 0, 1, count * MENU_ROW_HEIGHT - 1, COLOR_FG);
+    menu_rect(canvas, block_y, MENU_BAR_X, cursor * MENU_ROW_HEIGHT, 2, MENU_ROW_HEIGHT - 1,
+              COLOR_FG);
+
+    rotate_canvas(canvas, cbuf);
+}
+
+static bool menu_is_open(void) { return dilemma_max_menu_is_open(); }
+#else
+static bool menu_is_open(void) { return false; }
+#endif
+
 static void draw_top(void) {
     lv_obj_t *canvas = top_canvas;
     const struct output_state *out = &state.output;
+
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+    if (menu_is_open()) {
+        draw_menu(canvas, top_cbuf, 0);
+        return;
+    }
+#endif
 
     lv_draw_rect_dsc_t bg;
     init_rect(&bg, COLOR_BG);
@@ -237,7 +392,7 @@ static void draw_top(void) {
 /*
  * Modifier als 2x2-Raster. Gehalten = invertiertes Kaestchen.
  * Linke und rechte Variante eines Modifiers werden zusammengefasst; die Namen folgen
- * macOS (OPT = Alt, CMD = GUI).
+ * dem eingestellten Betriebssystem (Mac: OPT und CMD, Windows: ALT und WIN).
  */
 static void draw_mod(lv_obj_t *canvas, lv_coord_t x, lv_coord_t y, lv_coord_t w,
                      const char *name, bool active) {
@@ -257,6 +412,13 @@ static void draw_middle(void) {
     lv_obj_t *canvas = middle_canvas;
     zmk_mod_flags_t mods = state.mods.mods;
 
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+    if (menu_is_open()) {
+        draw_menu(canvas, middle_cbuf, BLOCK_SIZE);
+        return;
+    }
+#endif
+
     lv_draw_rect_dsc_t bg;
     init_rect(&bg, COLOR_BG);
     lv_draw_rect_dsc_t fg;
@@ -269,8 +431,14 @@ static void draw_middle(void) {
 
     draw_mod(canvas, 0, 16, 33, "SHFT", mods & (MOD_LSFT | MOD_RSFT));
     draw_mod(canvas, 35, 16, 33, "CTRL", mods & (MOD_LCTL | MOD_RCTL));
-    draw_mod(canvas, 0, 38, 33, "OPT", mods & (MOD_LALT | MOD_RALT));
-    draw_mod(canvas, 35, 38, 33, "CMD", mods & (MOD_LGUI | MOD_RGUI));
+    // Die Namen folgen dem Betriebssystem des gewaehlten Ausgangs (src/os_mode.c)
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    bool windows = dilemma_max_os_is_windows();
+#else
+    bool windows = false;
+#endif
+    draw_mod(canvas, 0, 38, 33, windows ? "ALT" : "OPT", mods & (MOD_LALT | MOD_RALT));
+    draw_mod(canvas, 35, 38, 33, windows ? "WIN" : "CMD", mods & (MOD_LGUI | MOD_RGUI));
 
     rotate_canvas(canvas, middle_cbuf);
 }
@@ -289,8 +457,23 @@ static void draw_bottom(void) {
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
     lv_canvas_draw_rect(canvas, 0, 2, BLOCK_SIZE, 21, &fg);
 
-    if (state.layer.name != NULL && strlen(state.layer.name) > 0) {
-        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, state.layer.name);
+    const char *name = state.layer.name;
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    // Unterhalb von NAV liegen nur Layer, die die Firmware selbst schaltet (WIN, Funktion
+    // des Encoders). Dort steht das Betriebssystem des gewaehlten Ausgangs.
+    if (state.layer.index < DM_LAYER_NAV) {
+        name = dilemma_max_os_is_windows() ? "WIN" : "MAC";
+    }
+#endif
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+    // Im Menue: Name der offenen Seite
+    if (menu_is_open()) {
+        name = dilemma_max_menu_title();
+    }
+#endif
+
+    if (name != NULL && strlen(name) > 0) {
+        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, name);
     } else {
         char text[12];
         snprintf(text, sizeof(text), "Layer %d", state.layer.index);
@@ -410,6 +593,13 @@ ZMK_SUBSCRIPTION(mods_status, zmk_keycode_state_changed);
 static void layer_update_cb(struct layer_state layer) {
     state.layer = layer;
     draw_bottom();
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    // Mac/Windows schaltet den WIN-Layer, und daran haengen die Namen der Modifier
+    if (middle_canvas != NULL) {
+        draw_middle();
+        middle_canvas_drawn = true;
+    }
+#endif
 }
 
 static struct layer_state layer_get_state(const zmk_event_t *eh) {
@@ -422,6 +612,27 @@ static struct layer_state layer_get_state(const zmk_event_t *eh) {
 
 ZMK_DISPLAY_WIDGET_LISTENER(layer_status, struct layer_state, layer_update_cb, layer_get_state)
 ZMK_SUBSCRIPTION(layer_status, zmk_layer_state_changed);
+
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_MENU)
+// Menue geoeffnet, geschlossen oder veraendert: beide Bloecke neu, auf der Display-Workqueue
+static void menu_redraw_work_cb(struct k_work *work) {
+    if (top_canvas == NULL || middle_canvas == NULL || bottom_canvas == NULL) {
+        return;
+    }
+    draw_top();
+    draw_middle();
+    middle_canvas_drawn = true;
+    draw_bottom();
+}
+
+static K_WORK_DEFINE(menu_redraw_work, menu_redraw_work_cb);
+
+void dilemma_max_status_screen_menu_changed(void) {
+    if (zmk_display_is_initialized()) {
+        k_work_submit_to_queue(zmk_display_work_q(), &menu_redraw_work);
+    }
+}
+#endif
 
 static lv_obj_t *create_block(lv_obj_t *parent, lv_color_t cbuf[], lv_coord_t x_ofs) {
     lv_obj_t *canvas = lv_canvas_create(parent);

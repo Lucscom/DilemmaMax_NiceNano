@@ -1,0 +1,7 @@
+description: |
+  Dilemma Max: bedient das Einstellungsmenue auf dem nice!view (src/menu.c). param1 ist
+  eines der Kommandos DM_MENU_* aus dt-bindings/dilemma_max/menu.h.
+
+compatible: "dilemma,behavior-menu"
+
+include: one_param.yaml
