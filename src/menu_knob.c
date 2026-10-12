@@ -67,13 +67,17 @@ static int menu_knob_process(struct zmk_behavior_binding *binding,
     int steps = pending_steps;
     pending_steps = 0;
 
-    if (mode != BEHAVIOR_SENSOR_BINDING_PROCESS_MODE_TRIGGER || steps == 0) {
+    if (mode != BEHAVIOR_SENSOR_BINDING_PROCESS_MODE_TRIGGER) {
         return ZMK_BEHAVIOR_TRANSPARENT;
     }
 
     // Positive Grad waren bisher "nach oben" (DM_MENU_UP), das bleibt so
-    dilemma_max_menu_step(-steps);
+    if (steps != 0) {
+        dilemma_max_menu_step(-steps);
+    }
 
+    // Immer abschliessend, auch wenn diese Flanke noch keinen Schritt ergibt: sonst reicht
+    // ZMK sie an den Layer darunter weiter, und der Encoder regelt nebenbei die Lautstaerke.
     return ZMK_BEHAVIOR_OPAQUE;
 }
 
