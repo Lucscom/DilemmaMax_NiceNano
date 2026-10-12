@@ -278,13 +278,13 @@ static void menu_icon(lv_obj_t *canvas, lv_coord_t by, uint8_t item, lv_coord_t 
         menu_rect(canvas, by, cx - 3, cy + 4, 1, 1, c);
         menu_rect(canvas, by, cx + 3, cy + 4, 1, 1, c);
         break;
-    case 2: { // Mondsichel, 9x10 px, hoechstes Bit links
-        static const uint16_t moon[10] = {0x038, 0x070, 0x0e0, 0x0e0, 0x1e0,
-                                          0x1e0, 0x1e1, 0x0f3, 0x0fe, 0x07c};
-        for (int row = 0; row < 10; row++) {
+    case 2: { // Mondsichel, aufrecht und oben wie unten gleich, 9x11 px, hoechstes Bit links
+        static const uint16_t moon[11] = {0x00c, 0x03c, 0x078, 0x0f8, 0x0f0, 0x1f0,
+                                          0x0f0, 0x0f8, 0x078, 0x03c, 0x00c};
+        for (int row = 0; row < 11; row++) {
             for (int col = 0; col < 9; col++) {
                 if (moon[row] & BIT(8 - col)) {
-                    menu_rect(canvas, by, cx - 4 + col, cy - 5 + row, 1, 1, c);
+                    menu_rect(canvas, by, cx - 3 + col, cy - 5 + row, 1, 1, c);
                 }
             }
         }
