@@ -20,6 +20,8 @@ enum dilemma_max_input_item {
 #define DILEMMA_MAX_KNOB_VOLUME 0
 #define DILEMMA_MAX_KNOB_SCROLL 1
 #define DILEMMA_MAX_KNOB_LIGHT 2
+#define DILEMMA_MAX_KNOB_ZOOM 3
+#define DILEMMA_MAX_KNOB_COUNT 4
 
 uint8_t dilemma_max_input_get(enum dilemma_max_input_item item);
 

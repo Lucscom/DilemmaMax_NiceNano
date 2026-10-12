@@ -3,7 +3,7 @@
  *
  * In der Keymap liegen beide Encoder auf dem Behavior &knob, das nur meldet, welcher
  * Encoder in welche Richtung gedreht wurde (dt-bindings/dilemma_max/knob.h). Was daraus
- * wird - Lautstaerke, Scrollen oder Helligkeit des Underglow - steht in den Einstellungen
+ * wird - Lautstaerke, Scrollen, Helligkeit des Underglow oder Zoom - steht in den Einstellungen
  * (Menue Input > L Knob / R Knob, src/input_settings.c).
  *
  * Ausgefuehrt wird die Funktion ueber die vorhandenen ZMK-Behaviors &kp, &msc und &rgb_ug:
@@ -26,6 +26,7 @@
 #define ZMK_POINTING_DEFAULT_SCRL_VAL 100
 #include <dt-bindings/zmk/pointing.h>
 #include <dilemma_max/input.h>
+#include <dilemma_max/os.h>
 #include <zmk/behavior.h>
 
 LOG_MODULE_REGISTER(dilemma_max_knob, CONFIG_ZMK_LOG_LEVEL);
@@ -42,6 +43,16 @@ static const struct zmk_behavior_binding actions[][2] = {
                                  {.behavior_dev = MSC_DEV, .param1 = SCRL_UP}},
     [DILEMMA_MAX_KNOB_LIGHT] = {{.behavior_dev = RGB_UG_DEV, .param1 = RGB_BRD_CMD},
                                 {.behavior_dev = RGB_UG_DEV, .param1 = RGB_BRI_CMD}},
+    // Zoom auf dem Mac: Cmd und die Keypad-Tasten - / +, die unabhaengig vom Layout des
+    // Rechners dieselben Zeichen liefern (wie bei der Pinch-Geste)
+    [DILEMMA_MAX_KNOB_ZOOM] = {{.behavior_dev = KP_DEV, .param1 = LG(KP_MINUS)},
+                               {.behavior_dev = KP_DEV, .param1 = LG(KP_PLUS)}},
+};
+
+// Zoom unter Windows: dasselbe mit Ctrl
+static const struct zmk_behavior_binding zoom_windows[2] = {
+    {.behavior_dev = KP_DEV, .param1 = LC(KP_MINUS)},
+    {.behavior_dev = KP_DEV, .param1 = LC(KP_PLUS)},
 };
 
 static int knob_invoke(struct zmk_behavior_binding *binding,
@@ -55,7 +66,14 @@ static int knob_invoke(struct zmk_behavior_binding *binding,
         return ZMK_BEHAVIOR_OPAQUE;
     }
 
-    int err = zmk_behavior_invoke_binding(&actions[function][increase ? 1 : 0], event, pressed);
+    const struct zmk_behavior_binding *action = &actions[function][increase ? 1 : 0];
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    if (function == DILEMMA_MAX_KNOB_ZOOM && dilemma_max_os_is_windows()) {
+        action = &zoom_windows[increase ? 1 : 0];
+    }
+#endif
+
+    int err = zmk_behavior_invoke_binding(action, event, pressed);
     if (err < 0) {
         LOG_WRN("Encoder-Funktion %u fehlgeschlagen (%d)", function, err);
     }

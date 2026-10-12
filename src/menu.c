@@ -179,6 +179,7 @@ static void format_input(uint8_t item, char *value, size_t value_len) {
         [DILEMMA_MAX_KNOB_VOLUME] = "vol",
         [DILEMMA_MAX_KNOB_SCROLL] = "scrl",
         [DILEMMA_MAX_KNOB_LIGHT] = "light",
+        [DILEMMA_MAX_KNOB_ZOOM] = "zoom",
     };
     uint8_t current = dilemma_max_input_get(item);
 

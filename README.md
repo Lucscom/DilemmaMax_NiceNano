@@ -347,8 +347,8 @@ The menu has three pages:
 | | `Invert` | reverses the scroll direction | off, on |
 | | `Glide` | scrolling coasts after lifting the fingers | on, off |
 | | `Tap` | tapping the pad clicks | on, off |
-| Input | `L Knob` | left encoder: volume, scrolling or underglow brightness | vol, scrl, light |
-| | `R Knob` | the same for the right encoder | vol, scrl, light |
+| Input | `L Knob` | left encoder: volume, scrolling, underglow brightness or zoom | vol, scrl, light, zoom |
+| | `R Knob` | the same for the right encoder | vol, scrl, light, zoom |
 | | `OS` | Mac or Windows for the output currently selected | mac, win |
 
 Power defaults are 30 s, 30 s and 5 min. All values are stored in the settings.
