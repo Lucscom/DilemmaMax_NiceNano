@@ -40,6 +40,7 @@
 #endif
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
 #include <dilemma_max/os.h>
+#include <dt-bindings/dilemma_max/layers.h>
 #endif
 
 #define BLOCK_SIZE 68
@@ -443,8 +444,17 @@ static void draw_bottom(void) {
     lv_canvas_draw_rect(canvas, 0, 0, BLOCK_SIZE, BLOCK_SIZE, &bg);
     lv_canvas_draw_rect(canvas, 0, 2, BLOCK_SIZE, 21, &fg);
 
-    if (state.layer.name != NULL && strlen(state.layer.name) > 0) {
-        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, state.layer.name);
+    const char *name = state.layer.name;
+#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
+    // Ohne weiteren Layer steht hier das Betriebssystem des Ausgangs: unter Windows ist der
+    // WIN-Layer aktiv und heisst so, auf dem Mac gibt es nur den Basis-Layer.
+    if (state.layer.index == DM_LAYER_BASE) {
+        name = "MAC";
+    }
+#endif
+
+    if (name != NULL && strlen(name) > 0) {
+        lv_canvas_draw_text(canvas, 0, 4, BLOCK_SIZE, &label_dsc, name);
     } else {
         char text[12];
         snprintf(text, sizeof(text), "Layer %d", state.layer.index);
