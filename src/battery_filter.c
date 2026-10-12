@@ -20,8 +20,8 @@
  *    zurueck), ist ihre Differenz der Einbruch. Der wird gemerkt und auf alle Messungen
  *    mit leuchtendem Underglow aufgeschlagen. Er lernt sich also selbst und zieht nach,
  *    wenn Helligkeit oder Effekt geaendert werden.
- *  - Das Ergebnis laeuft durch einen Tiefpass, und der Prozentwert aendert sich erst ab
- *    zwei Prozent Abstand, damit er nicht um eine Stelle zappelt.
+ *  - Der Prozentwert aendert sich erst ab zwei Prozent Abstand, damit er nicht um eine
+ *    Stelle zappelt. Die Spannung selbst wird nicht weiter geglaettet.
  *
  * Ein Abruf durch ZMK loest bewusst keine Messung aus: ZMK fragt genau in dem Moment, in
  * dem die Haelfte aufwacht - da gilt das Underglow schon als an, leuchtet aber noch nicht.
@@ -62,8 +62,6 @@ LOG_MODULE_REGISTER(dilemma_max_battery, CONFIG_ZMK_LOG_LEVEL);
 #define SAG_PAIR_MAX_MS (2 * 60 * MSEC_PER_SEC)
 // Mehr ist kein Einbruch durch die LEDs mehr, sondern ein gestecktes oder gezogenes Kabel.
 #define SAG_MAX_MV 400
-// Ab diesem Sprung folgt der Tiefpass sofort (USB gesteckt oder gezogen).
-#define FILTER_SNAP_MV 150
 #define SOC_HYSTERESIS 2
 // Am USB-Kabel haelt der Ladechip VDDH etwa 225 mV ueber der Zelle, hoechstens aber auf
 // 4,4 V. Ab hier ist diese Grenze erreicht und die Spannung sagt nichts mehr.
@@ -226,11 +224,7 @@ static int read_median_mv(const struct device *source, int32_t *mv) {
 static void battery_filter_charging(struct battery_filter_data *data, int32_t mv, int64_t now) {
     bool started = !data->charging;
 
-    if (started || !data->have_value || abs(mv - data->filtered_mv) > FILTER_SNAP_MV) {
-        data->filtered_mv = mv;
-    } else {
-        data->filtered_mv += (mv - data->filtered_mv) / 4;
-    }
+    data->filtered_mv = mv;
 
     uint8_t pct;
     if (data->filtered_mv >= CHARGE_PLATEAU_MV) {
@@ -253,8 +247,7 @@ static void battery_filter_charging(struct battery_filter_data *data, int32_t mv
     // Als Paar fuer den Einbruch taugt die Messung nicht
     data->have_prev = false;
 
-    LOG_INF("Akku laedt: VDDH %d mV, gefiltert %d mV => %d%%", mv, data->filtered_mv,
-            data->state_of_charge);
+    LOG_INF("Akku laedt: VDDH %d mV => %d%%", mv, data->state_of_charge);
 }
 
 static int battery_filter_sample(const struct device *dev) {
@@ -282,7 +275,7 @@ static int battery_filter_sample(const struct device *dev) {
     }
     if (data->charging) {
         // Kabel ab: die Messung zeigt wieder die Zelle und liegt gut 200 mV tiefer. Von vorn
-        // anfangen, ohne Tiefpass und ohne Hysterese zum geschaetzten Wert.
+        // anfangen, ohne Hysterese zum Wert aus der Ladekurve.
         data->charging = false;
         data->plateau_ts = 0;
         data->have_value = false;
@@ -302,11 +295,9 @@ static int battery_filter_sample(const struct device *dev) {
 
     int32_t estimate = mv + (loaded ? data->sag_mv : 0);
 
-    if (!data->have_value || abs(estimate - data->filtered_mv) > FILTER_SNAP_MV) {
-        data->filtered_mv = estimate;
-    } else {
-        data->filtered_mv += (estimate - data->filtered_mv) / 4;
-    }
+    // Kein Tiefpass: der Median aus fuenf Messungen ist ruhig genug, und ein Tiefpass
+    // hinkte der Zelle im aufgezeichneten Ladevorgang sichtbar hinterher.
+    data->filtered_mv = estimate;
 
     uint8_t pct = mv_to_pct(data->filtered_mv);
     if (!data->have_value || pct == 100 ||
@@ -315,7 +306,7 @@ static int battery_filter_sample(const struct device *dev) {
     }
     data->have_value = true;
 
-    LOG_INF("Akku %d mV (%s), Einbruch %d mV, gefiltert %d mV => %d%%", mv,
+    LOG_INF("Akku %d mV (%s), Einbruch %d mV, bereinigt %d mV => %d%%", mv,
             loaded ? "Underglow an" : "Underglow aus", data->sag_mv, data->filtered_mv,
             data->state_of_charge);
 

@@ -420,8 +420,8 @@ was empty.
 samples every 30 s on its own, also while idle, and sorts each sample by
 whether the underglow is on. Two neighbouring samples on either side of an
 on/off change give the voltage drop, which is then added back to every sample
-taken with the LEDs lit. The result is low-pass filtered and the percentage
-only moves in steps of two. The drop is learned again after every boot, so the
+taken with the LEDs lit. The voltage is not smoothed any further; the
+percentage only moves in steps of two. The drop is learned again after every boot, so the
 reading can be a few percent low until the half has gone idle once.
 
 On USB the VDDH pin does not show the cell but the output of the charger chip,
