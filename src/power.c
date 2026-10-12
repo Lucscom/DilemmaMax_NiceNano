@@ -48,6 +48,7 @@
 LOG_MODULE_REGISTER(dilemma_max_power, CONFIG_ZMK_LOG_LEVEL);
 
 #define OPTION_COUNT 6
+#define ECO_BOOT_NOTICE_MS 6000
 #define SETTINGS_KEY "dilemma/power"
 // Nachschuesse nach dem Aufwachen, falls ein Kommando an die rechte Haelfte verloren geht
 #define WAKE_RETRIES 2
@@ -165,7 +166,10 @@ static void eval_work_cb(struct k_work *work) {
     uint16_t sleep_s = dilemma_max_power_timeout_s(DILEMMA_MAX_POWER_SLEEP);
     bool usb = usb_powered();
 
-    bool eco = saved.eco != 0;
+    // Nach dem Start bleibt die Schiene auch im Power saving mode ein paar Sekunden an:
+    // das Display zeigt dann "SAVING", sonst saehe eine Tastatur, die in dem Modus
+    // eingeschaltet wird, einfach tot aus.
+    bool eco = saved.eco != 0 && k_uptime_get() >= ECO_BOOT_NOTICE_MS;
 
     // Power saving mode: Schiene immer aus, auf beiden Haelften und auch am Kabel
     bool want_remote_rail_off = eco || (rail_s != 0 && idle_s >= rail_s);
