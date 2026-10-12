@@ -354,10 +354,11 @@ The menu has three pages:
 Power defaults are 30 s, 30 s and 5 min. All values are stored in the settings.
 
 Hold NAV and press the left encoder to open the menu. Turning selects an entry,
-pressing opens a page or steps a value, NAV plus a press goes back one level
-and closes the menu from the top level; 20 s without input closes it too. While
+pressing opens a page or steps a value. Tapping NAV goes back one level, NAV
+plus a press of the encoder closes the menu from any level, and 20 s without
+input closes it too. While
 it is open the keymap's top layer (`MENU`) is active, where the encoder is
-bound to the `&menu` behavior from `src/menu.c`; nothing is intercepted and all
+bound to the menu and the NAV key to "back"; nothing is intercepted and all
 other keys keep working.
 
 Where the Touch and Input settings take effect: speed and direction are applied

@@ -170,9 +170,9 @@
 
         // Layer DM_LAYER_MENU (4): aktiv, solange das Einstellungsmenue auf dem Display offen
         // ist. Oeffnen: NAV halten und den linken Encoder druecken. Im Menue: drehen = Eintrag
-        // waehlen, druecken = Untermenue oeffnen oder Wert weiterschalten, NAV + druecken =
-        // zurueck bzw. schliessen. Nach 20 s Pause geht es von selbst zu. Alle anderen Tasten
-        // bleiben, wie sie sind.
+        // waehlen, druecken = Untermenue oeffnen oder Wert weiterschalten, NAV antippen = eine
+        // Ebene zurueck, NAV + druecken = schliessen. Nach 20 s Pause geht es von selbst zu.
+        // Die NAV-Taste gehoert hier dem Menue, alle anderen Tasten bleiben, wie sie sind.
         menu_layer {
             display-name = "MENU";
             bindings = <
@@ -180,7 +180,7 @@
                 &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
                 &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
                 &trans  &trans  &trans  &trans  &trans  &trans      &trans  &trans  &trans  &trans  &trans  &trans
-                        &menu DM_MENU_SELECT  &trans  &trans  &trans      &trans  &trans  &trans  &trans
+                        &menu DM_MENU_SELECT  &trans  &trans  &menu DM_MENU_BACK      &trans  &trans  &trans  &trans
             >;
 
             sensor-bindings = <&menu_knob &knob_enc DM_KNOB_RIGHT_DEC DM_KNOB_RIGHT_INC>;

@@ -2,9 +2,10 @@
  * Dilemma Max - Einstellungsmenue auf dem nice!view (linke Haelfte).
  *
  * Bedient wird es mit dem linken Encoder:
- *   NAV halten + druecken   oeffnen; im Menue: eine Ebene zurueck, ganz oben schliessen
+ *   NAV halten + druecken   oeffnen; im Menue: schliessen, von jeder Ebene aus
  *   drehen                  Eintrag waehlen
  *   druecken                Untermenue oeffnen bzw. Wert des Eintrags weiterschalten
+ *   NAV antippen            eine Ebene zurueck, ganz oben schliessen
  * Nach 20 s ohne Bedienung geht es von selbst zu.
  *
  * Abgefangen wird dafuer nichts. Solange das Menue offen ist, ist der Layer DM_LAYER_MENU
@@ -107,6 +108,10 @@ BUILD_ASSERT(ARRAY_SIZE(input_entries) <= DILEMMA_MAX_MENU_MAX_ITEMS);
 static bool menu_open;
 static uint8_t menu_page;
 static uint8_t menu_cursor;
+// NAV-Taste im Menue (DM_MENU_BACK): gehalten, und ob waehrenddessen der Encoder gedrueckt
+// wurde - dann war es "schliessen" und beim Loslassen passiert nichts mehr
+static bool nav_held;
+static bool nav_used;
 
 static void menu_set_open(bool open) {
     if (open == menu_open) {
@@ -292,14 +297,20 @@ static int menu_binding_pressed(struct zmk_behavior_binding *binding,
         if (!menu_open) {
             break;
         }
-        // Mit gehaltenem NAV geht derselbe Druck, mit dem das Menue aufging, wieder zurueck.
-        // Der MENU-Layer liegt ueber NAV, deshalb landet er hier und nicht bei DM_MENU_OPEN.
-        if (zmk_keymap_layer_active(DM_LAYER_NAV)) {
-            menu_back();
+        // NAV + Encoder schliesst das Menue von jeder Ebene aus. NAV ist im Menue die Taste
+        // DM_MENU_BACK; der NAV-Layer selbst ist nur dann noch aktiv, wenn die Taste seit
+        // dem Oeffnen nicht losgelassen wurde.
+        if (nav_held || zmk_keymap_layer_active(DM_LAYER_NAV)) {
+            nav_used = true;
+            menu_set_open(false);
         } else {
             menu_select();
         }
         break;
+    case DM_MENU_BACK:
+        nav_held = true;
+        nav_used = false;
+        return ZMK_BEHAVIOR_OPAQUE;
     default:
         return -ENOTSUP;
     }
@@ -311,6 +322,18 @@ static int menu_binding_pressed(struct zmk_behavior_binding *binding,
 
 static int menu_binding_released(struct zmk_behavior_binding *binding,
                                  struct zmk_behavior_binding_event event) {
+    if (binding->param1 != DM_MENU_BACK) {
+        return ZMK_BEHAVIOR_OPAQUE;
+    }
+
+    // Angetippt, ohne dazwischen den Encoder zu druecken: eine Ebene zurueck
+    bool tapped = nav_held && !nav_used;
+    nav_held = false;
+    if (tapped && menu_open) {
+        menu_back();
+        menu_touched();
+    }
+
     return ZMK_BEHAVIOR_OPAQUE;
 }
 
