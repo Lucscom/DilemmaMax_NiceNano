@@ -354,8 +354,8 @@ Mission Control, and the trackpad gestures send the shortcuts from
 `keycodes-win` (virtual desktops, task view, show desktop, Ctrl zoom). The
 layer order is fixed in `include/dt-bindings/dilemma_max/layers.h`.
 
-To open the menu, hold NAV and press the left encoder. Turning selects an
-entry, pressing steps its value, `EXIT` or 20 s without input closes it. While
+To open or close the menu, hold NAV and press the left encoder. Turning selects
+an entry, pressing steps its value, and 20 s without input closes it. While
 it is open the keymap's top layer (`MENU`) is active, where the encoder is bound
 to the `&menu` behavior from `src/menu.c`; nothing is intercepted and all other
 keys keep working.

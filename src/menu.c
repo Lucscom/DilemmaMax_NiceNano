@@ -2,8 +2,8 @@
  * Dilemma Max - Einstellungsmenue auf dem nice!view (linke Haelfte).
  *
  * Bedient wird es mit dem linken Encoder: NAV halten und den Encoder druecken oeffnet es,
- * drehen waehlt einen Eintrag, druecken schaltet dessen Wert weiter. EXIT oder 20 s ohne
- * Bedienung schliessen es wieder.
+ * drehen waehlt einen Eintrag, druecken schaltet dessen Wert weiter. NAV und Encoder
+ * druecken oder 20 s ohne Bedienung schliessen es wieder.
  *
  * Abgefangen wird dafuer nichts. Solange das Menue offen ist, ist der Layer DM_LAYER_MENU
  * der Keymap aktiv, und auf dem liegen Drehen und Druecken des Encoders auf dem Behavior
@@ -37,9 +37,8 @@ LOG_MODULE_REGISTER(dilemma_max_menu, CONFIG_ZMK_LOG_LEVEL);
 // Die ersten Eintraege sind die Zeiten aus dilemma_max/power.h, in derselben Reihenfolge
 #define ITEM_OS DILEMMA_MAX_POWER_ITEM_COUNT
 #define ITEM_BATT (DILEMMA_MAX_POWER_ITEM_COUNT + 1)
-#define ITEM_EXIT (DILEMMA_MAX_POWER_ITEM_COUNT + 2)
 
-BUILD_ASSERT(ITEM_EXIT + 1 == DILEMMA_MAX_MENU_ITEM_COUNT);
+BUILD_ASSERT(ITEM_BATT + 1 == DILEMMA_MAX_MENU_ITEM_COUNT);
 
 #define AUTO_CLOSE K_SECONDS(20)
 
@@ -71,22 +70,25 @@ bool dilemma_max_menu_is_open(void) { return menu_open; }
 
 uint8_t dilemma_max_menu_cursor(void) { return menu_cursor; }
 
+// Hoechstens fuenf Zeichen, mehr passt in der Schrift nicht neben das Symbol
 static void format_timeout(uint16_t seconds, char *value, size_t value_len) {
     if (seconds == 0) {
         snprintf(value, value_len, "never");
     } else if (seconds < 60) {
         snprintf(value, value_len, "%u s", seconds);
-    } else {
+    } else if (seconds < 600) {
         snprintf(value, value_len, "%u min", seconds / 60);
+    } else {
+        snprintf(value, value_len, "%umin", seconds / 60);
     }
 }
 
 void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, char *value,
                                 size_t value_len) {
     static const char *const labels[DILEMMA_MAX_MENU_ITEM_COUNT] = {
-        [DILEMMA_MAX_POWER_LIGHT] = "LIGHT", [DILEMMA_MAX_POWER_RAIL] = "POWER",
-        [DILEMMA_MAX_POWER_SLEEP] = "SLEEP", [ITEM_OS] = "OS",
-        [ITEM_BATT] = "BATT",                [ITEM_EXIT] = "EXIT",
+        [DILEMMA_MAX_POWER_LIGHT] = "Light", [DILEMMA_MAX_POWER_RAIL] = "Power",
+        [DILEMMA_MAX_POWER_SLEEP] = "Sleep", [ITEM_OS] = "OS",
+        [ITEM_BATT] = "Batt mV",
     };
 
     label[0] = '\0';
@@ -108,30 +110,7 @@ void dilemma_max_menu_item_text(uint8_t item, char *label, size_t label_len, cha
         // Gemessene Spannung der linken Haelfte in mV; am USB-Kabel ist das die Versorgung
         snprintf(value, value_len, "%d", (int)dilemma_max_battery_filter_mv());
 #endif
-    } else {
-        snprintf(value, value_len, "close");
     }
-}
-
-const char *dilemma_max_menu_item_hint(uint8_t item) {
-    static const char *const hints[DILEMMA_MAX_MENU_ITEM_COUNT] = {
-        [DILEMMA_MAX_POWER_LIGHT] = "lights off", [DILEMMA_MAX_POWER_RAIL] = "display off",
-        [DILEMMA_MAX_POWER_SLEEP] = "deep sleep", [ITEM_BATT] = "mV left half",
-        [ITEM_EXIT] = "press knob",
-    };
-
-#if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
-    // Der Wert gilt nur fuer den gerade gewaehlten Ausgang, also dazuschreiben, welcher das ist
-    if (item == ITEM_OS) {
-        static char hint[12];
-        char output[6];
-        dilemma_max_os_output_name(output, sizeof(output));
-        snprintf(hint, sizeof(hint), "for %s", output);
-        return hint;
-    }
-#endif
-
-    return item < DILEMMA_MAX_MENU_ITEM_COUNT && hints[item] != NULL ? hints[item] : "";
 }
 
 static int menu_binding_pressed(struct zmk_behavior_binding *binding,
@@ -155,14 +134,18 @@ static int menu_binding_pressed(struct zmk_behavior_binding *binding,
         if (!menu_open) {
             break;
         }
+        // Mit gehaltenem NAV schliesst derselbe Druck das Menue, mit dem es aufging. Der
+        // MENU-Layer liegt ueber NAV, deshalb landet der Druck hier und nicht bei DM_MENU_OPEN.
+        if (zmk_keymap_layer_active(DM_LAYER_NAV)) {
+            menu_set_open(false);
+            break;
+        }
         if (menu_cursor < DILEMMA_MAX_POWER_ITEM_COUNT) {
             dilemma_max_power_cycle(menu_cursor);
         } else if (menu_cursor == ITEM_OS) {
 #if IS_ENABLED(CONFIG_DILEMMA_MAX_OS_MODE)
             dilemma_max_os_toggle();
 #endif
-        } else if (menu_cursor == ITEM_EXIT) {
-            menu_set_open(false);
         }
         break;
     default:

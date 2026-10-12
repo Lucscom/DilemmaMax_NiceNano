@@ -134,7 +134,7 @@
             // FN    = Globe/Fn-Taste (Diktat)
             // MIS   = Mission Control (C_AC_DESKTOP_SHOW_ALL_WINDOWS)
             // TOG   = RGB Toggle, BRI/BRD = Helligkeit, EFF = Effekt, HUI/HUD = Farbe
-            // Encoder druecken (Daumenreihe ganz links) = Einstellungsmenue oeffnen
+            // Encoder druecken (Daumenreihe ganz links) = Einstellungsmenue oeffnen und schliessen
             bindings = <
                 &trans      &bt_ht 0 0    &bt_ht 1 1    &bt_ht 2 2          &bt_ht 3 3                          &bt_ht 4 4  &trans  &trans    &trans    &trans     &trans  &trans
                 &trans      &trans        &trans        &trans               &trans                              &trans        &trans  &trans    &kp UP   &trans     &kp RBKT  &trans
@@ -162,9 +162,9 @@
         };
 
         // Layer DM_LAYER_MENU (4): aktiv, solange das Einstellungsmenue auf dem Display offen
-        // ist. Oeffnen: NAV halten und den linken Encoder druecken. Dann: drehen = Eintrag
-        // waehlen, druecken = Wert weiterschalten, EXIT oder 20 s Pause = schliessen.
-        // Alle anderen Tasten bleiben, wie sie sind.
+        // ist. Oeffnen und schliessen: NAV halten und den linken Encoder druecken. Im Menue:
+        // drehen = Eintrag waehlen, druecken = Wert weiterschalten. Nach 20 s Pause geht es
+        // von selbst zu. Alle anderen Tasten bleiben, wie sie sind.
         menu_layer {
             display-name = "MENU";
             bindings = <
